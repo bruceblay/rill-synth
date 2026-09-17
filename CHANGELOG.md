@@ -1,5 +1,12 @@
 # Changes
 
+## Unreleased — visual study
+
+- Replaced the six visual families with a new set drawn as light on a dark ground: current, interference, strata, pendulum, growth and curtains.
+- Added a shared drawing material for them: subpixel additive splats, hash-noise dithering that moves every frame, and a decay that returns the frame to ground without leaving residue.
+- Archived the original six families in `src/LightClassic.h`, unused by the firmware; the retained-behavior test now holds that archive to the historical fixture.
+- Not yet seen on hardware. The frame times are host measurements.
+
 ## 0.2.0 — 2026-09-12
 
 - Replaced fixed eight-step motifs and rhythm cells with generated phrases and cumulative development.

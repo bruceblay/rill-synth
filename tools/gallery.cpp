@@ -10,11 +10,16 @@
 int main(int argc,char** argv) {
   if(argc!=2) return 1;
   constexpr unsigned width=720,height=270;
+  // The families do not arrive at the same rate: trails and growth need time
+  // on the clock before there is anything to photograph, while the field
+  // families are complete on their first frame. These are settled moments,
+  // in twelfths of a second, not a single arbitrary count.
+  static const unsigned settled[light::Painting::familyCount]={180,120,150,150,210,120};
   auto pixels=std::unique_ptr<std::array<uint16_t,width*height>>(new std::array<uint16_t,width*height>{});
-  for(unsigned family=0;family<6;++family) {
+  for(unsigned family=0;family<light::Painting::familyCount;++family) {
     auto painting=std::unique_ptr<light::Painting>(new light::Painting(17));
     while(painting->visualFamily()!=family) painting->regenerate();
-    for(unsigned frame=0;frame<120;++frame) painting->render(1.0f/12,.35f);
+    for(unsigned frame=0;frame<settled[family];++frame) painting->render(1.0f/12,.35f);
     for(unsigned y=0;y<135;++y) for(unsigned x=0;x<240;++x)
       (*pixels)[(y+(family/3)*135)*width+x+(family%3)*240]=painting->pixels()[y*240+x];
   }

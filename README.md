@@ -28,21 +28,24 @@ The data view shows the voice, key, mode, generation number, tempo, delay rhythm
 - **Seven timbres:** Bongo, Bars, Wood, Bells, Wire, Halo and Synth. These combine resonant modes, plucked tones, FM and filtered oscillators; they are interpretations, not exact hardware or acoustic-instrument emulations.
 - **Generated phrases:** six contour tendencies guide newly composed melodies, variable phrase spans, interval preferences and rhythms. Ideas develop through changed endings, rhythmic rephrasing, recalled fragments and new descendants. Sparse answering parts follow their own timing. Twelve tonics, three modes, four harmonic behaviors and gradual changes in activity give each piece its own phrasing.
 - **Evolving echoes:** two tempo-related taps, smooth or stepped feedback, occasional stronger repeat passages and intermittent smearing.
-- **Six visual families:** elastic creatures, moving cutouts, a landscape ring sculpture, drifting particles, folding tiles and reflected rays. Each shake selects a different family. Particles, tiles and reflections develop new arrangements over time.
+- **Six visual families:** a flowing current, wave interference, settling strata, a drawing pendulum, branching growth and light curtains. Each shake selects a different family. Every family is drawn as light on a dark ground and drifts through slow parameter changes, so a family returned to minutes later is not the arrangement it was. Growth and the pendulum run a life of their own: they arrive, hold, dissolve and begin again.
 
 New music fades between generations. Generations are not saved across restarts. Device-to-device ensemble sync is a [design proposal](SYNC-DESIGN.md), not an available feature.
 
-## On the device
+## The six visuals
 
-Photos of all six visual families running on the StickS3. Shake to change the visual; tap the front button to generate new music and a new visual together.
+Shake to change the visual; tap the front button to generate new music and a new visual together.
 
-| Elastic creatures | Moving cutouts |
-| --- | --- |
-| ![Elastic colored blobs](docs/images/rill-blobs.jpg) | ![Striped moving cutout](docs/images/rill-cutout.jpg) |
-| **Ring sculpture** | **Drifting particles** |
-| ![Landscape gradient ring sculpture](docs/images/rill-rings.jpg) | ![Colored particles gathering into groups](docs/images/rill-particles.jpg) |
-| **Folding tiles** | **Reflected rays** |
-| ![Colored folding tiles](docs/images/rill-tiles.jpg) | ![Colored reflected light rays](docs/images/rill-reflections.jpg) |
+<img src="docs/images/visuals-study.png" alt="Contact sheet of the six visual families" width="720">
+
+*Top row: current, interference, strata. Bottom row: pendulum, growth, curtains. These are frames from the renderer itself, at the same 240x135 the device draws, taken at a settled moment for each family. They are not photographs of the screen; device photos are still to be taken.*
+
+- **Current** — hundreds of marks drift through a slowly turning flow field, each leaving a fading trail, so the screen is a long exposure of where the field has been.
+- **Interference** — two travelling wave sources and a drifting plane wave sum into a field, and the contour lines of that field are drawn as fine bright threads.
+- **Strata** — bands settle in from the top every few seconds and push the older ones down and out of frame, each with its own lit edge.
+- **Pendulum** — a damped harmonograph traces a figure, precesses as it decays, comes to rest, and then starts a different one.
+- **Growth** — branches cross the screen from one side, splitting as they go and stopping where they meet ground already taken, then hold, dissolve and begin again.
+- **Curtains** — vertical sheets of light hang and drift, striated across their own width.
 
 ## Hardware
 
@@ -100,6 +103,7 @@ Tests cover thirty simulated minutes of music, bounded output, key/register cons
 
 - `src/Garden.h` — synthesis, score and effects
 - `src/Light.h` — procedural visual families
+- `src/LightClassic.h` — the archived original six families, unused by the firmware and held to their historical baseline by the tests
 - `src/main.cpp` — audio, display, buttons and motion tasks
 - `src/ShakeDetector.h` — gesture recognition
 - `tools/` — portable tests, auditions, previews and flashing
