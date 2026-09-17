@@ -5,6 +5,9 @@
 - Replaced the six visual families with a new set drawn as light on a dark ground: current, interference, strata, pendulum, growth and curtains.
 - Added a shared drawing material for them: subpixel additive splats, hash-noise dithering that moves every frame, and a decay that returns the frame to ground without leaving residue.
 - Archived the original six families in `src/LightClassic.h`, unused by the firmware; the retained-behavior test now holds that archive to the historical fixture.
+- Slowed the interference field to about a third of its first speed.
+- Reworked the pendulum: the pen now moves slowly enough to be followed, its envelope bottoms out instead of collapsing, and a new figure starts every twenty seconds or so, so it never settles into a filled shape.
+- Replaced the palettes with six of clear, well separated hues.
 - Not yet seen on hardware. The frame times are host measurements.
 
 ## 0.2.0 — 2026-09-12

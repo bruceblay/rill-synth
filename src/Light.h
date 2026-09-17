@@ -57,7 +57,7 @@ class Painting {
   std::array<Layer, 14> layers{};
   unsigned layerCount = 0;
   float settleAt = 0;
-  float penT = 0, penDecay = 0, penAmplitude = 1;
+  float penT = 0, penDecay = 0, penEnvelope = 1, figureAt = 0;
   std::array<float, 4> penFreq{}, penPhase{}, penSize{};
   std::array<Node, 168> nodes{};
   unsigned nodeCount = 0, liveNodes = 0;
@@ -196,9 +196,9 @@ class Painting {
     d.tint = index % 3;
   }
   void renderCurrent(float dt) {
-    settle(238);
+    settle(241);
     float speed = (26 + evolving[3] * 46) * (0.72f + breath * 0.7f);
-    unsigned active = 40 + unsigned(evolving[4] * float(drops.size() - 40));
+    unsigned active = 60 + unsigned(evolving[4] * float(drops.size() - 60));
     for (unsigned i = 0; i < active; ++i) {
       Drop& d = drops[i];
       d.life -= dt / d.span;
@@ -211,7 +211,7 @@ class Painting {
       // Fade in and out at the ends of a life so no stroke starts or stops
       // abruptly; the field should look like it has no edges in time.
       float ends = std::min(1.0f, std::min((1 - d.life) * 7.0f, d.life * 3.2f));
-      float a = ends * (0.34f + breath * 0.52f);
+      float a = ends * (0.62f + breath * 0.70f);
       stroke(d.px, d.py, d.x, d.y, ink[d.tint], a);
       if (d.life > 0.82f) splat(d.x, d.y, glow, a * 0.7f);
     }
@@ -219,10 +219,10 @@ class Painting {
 
   void renderInterference() {
     float t = phase;
-    float ax = 120 + fcos(t * 0.037f) * (34 + evolving[0] * 62);
-    float ay = 67 + fsin(t * 0.029f) * (18 + evolving[1] * 34);
-    float bx = 120 - fcos(t * 0.023f + 0.31f) * (28 + evolving[2] * 70);
-    float by = 67 - fsin(t * 0.041f + 0.17f) * (16 + evolving[3] * 38);
+    float ax = 120 + fcos(t * 0.015f) * (34 + evolving[0] * 62);
+    float ay = 67 + fsin(t * 0.012f) * (18 + evolving[1] * 34);
+    float bx = 120 - fcos(t * 0.009f + 0.31f) * (28 + evolving[2] * 70);
+    float by = 67 - fsin(t * 0.017f + 0.17f) * (16 + evolving[3] * 38);
     float ka = 0.0055f + evolving[4] * 0.0075f;
     float kb = 0.0042f + evolving[5] * 0.0085f;
     float tilt = evolving[6];
@@ -239,9 +239,9 @@ class Painting {
         float fx = float(x) + 0.5f;
         float dax = fx - ax, dbx = fx - bx;
         float da = std::sqrt(dax * dax + day * day), db = std::sqrt(dbx * dbx + dby * dby);
-        float v = fsin(da * ka - t * 0.21f) * 0.4f
-                + fsin(db * kb + t * 0.16f) * 0.36f
-                + fsin(fx * px + fy * py + t * 0.09f) * 0.24f;
+        float v = fsin(da * ka - t * 0.062f) * 0.4f
+                + fsin(db * kb + t * 0.048f) * 0.36f
+                + fsin(fx * px + fy * py + t * 0.028f) * 0.24f;
         float u = v * 0.5f + 0.5f;
         // Contour lines: the triangle wave crosses zero at each band edge and
         // the cube turns the crossing into a thin, soft line.
@@ -309,8 +309,8 @@ class Painting {
           float local = (float(y) - previous) / thickness;
           // Each band is darkest where it was buried and lightest where it
           // meets the next; the grain keeps the fill from looking printed.
-          float shade = 0.14f + 0.34f * local + 0.07f * grain(int(x), y);
-          shade *= 0.45f + 0.55f * l.tone;
+          float shade = 0.22f + 0.50f * local + 0.07f * grain(int(x), y);
+          shade *= 0.60f + 0.40f * l.tone;
           float d = dither(int(x), y);
           int r = int(body.r * shade * (31.0f / 255.0f) + d);
           int g = int(body.g * shade * (63.0f / 255.0f) + d);
@@ -349,45 +349,64 @@ class Painting {
     float sum01 = penSize[0] + penSize[1], sum23 = penSize[2] + penSize[3];
     penSize[0] /= sum01; penSize[1] /= sum01; penSize[2] /= sum23; penSize[3] /= sum23;
     penT = 0;
-    penAmplitude = 1;
-    penDecay = range(0.006f, 0.017f);
+    penEnvelope = 1;
+    // Per unit of pen time, not per second: the pen advances about a tenth of
+    // a unit a second, so this is a figure that has visibly drawn itself
+    // tighter by the time it is replaced.
+    penDecay = range(0.12f, 0.34f);
+    figureAt = range(17.0f, 27.0f);
   }
   void renderHarmonograph(float dt) {
-    settle(253);
-    if (penAmplitude < 0.06f) {
-      // The figure has come to rest. Hold it, let the decay take it down,
-      // then start a different one.
-      growthHold += dt;
-      if (growthHold > 4.5f) { growthHold = 0; newFigure(); }
-      splat(120, 67, glow, 0.05f + breath * 0.12f);
-      return;
-    }
-    float span = dt * (2.2f + parameters[1] * 1.8f);
-    unsigned steps = 70 + unsigned(evolving[0] * 90);
+    // The pen is deliberately slow. Run it at the speed the figure is
+    // traversed and it closes its whole loop several times a second, which
+    // fills the frame in a moment and then has nothing left to show. At this
+    // speed it stays a line that is still drawing itself, and the decay
+    // clears the oldest part of the stroke as the newest arrives.
+    settle(249);
+    figureAt -= dt;
+    if (figureAt <= 0) newFigure();
+    float span = dt * (0.10f + parameters[1] * 0.07f) * (1.0f + breath * 0.3f);
+    unsigned steps = 18 + unsigned(evolving[0] * 22);
     float step = span / float(steps);
     float rx = 74 + evolving[1] * 38, ry = 42 + evolving[2] * 20;
     float decayPerStep = std::exp(-penDecay * step);
-    float lx = 0, ly = 0, amp = penAmplitude;
+    float lx = 0, ly = 0, env = penEnvelope;
     for (unsigned i = 0; i <= steps; ++i) {
       float t = penT + step * float(i);
-      if (i) amp *= decayPerStep;
+      if (i) env *= decayPerStep;
+      // The envelope bottoms out rather than collapsing to a point, so a long
+      // figure ends up tighter than it started but still worth watching.
+      float amp = 0.34f + 0.66f * env;
       float x = 120 + rx * amp * (penSize[0] * fsin(penFreq[0] * t + penPhase[0])
                                 + penSize[1] * fsin(penFreq[1] * t + penPhase[1]));
       float y = 67 + ry * amp * (penSize[2] * fsin(penFreq[2] * t + penPhase[2])
                                + penSize[3] * fsin(penFreq[3] * t + penPhase[3]));
       if (i == 0) { lx = x; ly = y; continue; }
-      float hue = t * 0.035f;
+      // Colour travels along the stroke, so the trail reads as a gradient
+      // from the head back into what has already been drawn.
+      float hue = t * 0.85f;
       float band = hue - std::floor(hue);
       unsigned a = unsigned(band * 3.0f) % 3, b = (a + 1) % 3;
       float blend = band * 3.0f - float(unsigned(band * 3.0f));
       Color c = {ink[a].r + (ink[b].r - ink[a].r) * blend,
                  ink[a].g + (ink[b].g - ink[a].g) * blend,
                  ink[a].b + (ink[b].b - ink[a].b) * blend};
-      stroke(lx, ly, x, y, c, (0.10f + breath * 0.20f) * amp);
+      float weight = 0.46f + breath * 0.44f;
+      stroke(lx, ly, x, y, c, weight);
+      // A second pass across the stroke gives the ribbon some body; a single
+      // hairline at this size disappears into the ground.
+      float ox = y - ly, oy = lx - x;
+      float length = std::sqrt(ox * ox + oy * oy);
+      if (length > 0.001f) {
+        ox = ox / length * 0.8f; oy = oy / length * 0.8f;
+        stroke(lx + ox, ly + oy, x + ox, y + oy, c, weight * 0.45f);
+        stroke(lx - ox, ly - oy, x - ox, y - oy, c, weight * 0.45f);
+      }
       lx = x; ly = y;
     }
+    splat(lx, ly, glow, 0.5f + breath * 0.5f);
     penT += span;
-    penAmplitude *= std::exp(-penDecay * span);
+    penEnvelope = env;
   }
 
   void seedGrowth() {
@@ -500,16 +519,16 @@ class Painting {
 
   void renderVeil() {
     float t = phase;
-    unsigned curtains = 3;
-    float centre[3], weightScale[3], hueMix[3];
+    constexpr unsigned curtains = 4;
+    float centre[curtains], weightScale[curtains], hueMix[curtains];
     for (unsigned k = 0; k < curtains; ++k) {
       float fk = float(k);
-      centre[k] = (fk + 0.5f) * (float(width) / float(curtains)) + (evolving[k] - 0.5f) * 84;
-      weightScale[k] = 7 + evolving[k + 3] * 15;
-      hueMix[k] = fk / 2.0f;
+      centre[k] = (fk + 0.5f) * (float(width) / float(curtains)) + (evolving[k] - 0.5f) * 76;
+      weightScale[k] = 9 + evolving[(k + 3) % 8] * 17;
+      hueMix[k] = fk / float(curtains - 1);
     }
     float shimmerRate = 0.05f + parameters[2] * 0.09f;
-    float lift = 1.5f + breath * 1.9f;
+    float lift = 3.2f + breath * 2.4f;
     for (unsigned y = 0; y < height; ++y) {
       float fy = float(y);
       uint16_t ground = rowGround[y];
@@ -519,7 +538,7 @@ class Painting {
       float foot = 1 - std::abs(fy / float(height) - 0.72f) * 1.55f;
       foot = std::max(0.0f, foot);
       float vertical = foot * foot * (0.35f + 0.65f * (fy / float(height)));
-      float cx[3], amp[3];
+      float cx[curtains], amp[curtains];
       for (unsigned k = 0; k < curtains; ++k) {
         cx[k] = centre[k] + fsin(fy * 0.0075f + t * (0.021f + 0.008f * float(k)) + float(k) * 0.37f) * (18 + evolving[6] * 34)
                           + fsin(fy * 0.021f - t * 0.033f) * 5.0f;
@@ -569,16 +588,17 @@ class Painting {
     breath = 0;
     for (auto& p : parameters) p = unit();
     pace = 0.75f + parameters[7] * 0.6f;
-    // Luminous inks on a near-black ground, with a fourth near-white for
-    // highlights. Saturation is kept short of the display's limits so the
-    // additive passes have somewhere to go.
+    // Three clear, well separated hues and a white for highlights. The first
+    // set was built from muted neighbours on the wheel and read as dull on
+    // the panel. These are poster colours, far enough apart that a blend
+    // between any two of them stays a colour instead of turning to grey.
     static const Color palettes[6][4] = {
-      {{ 72, 196, 180}, {232, 198, 118}, {150, 214, 206}, {228, 246, 240}},  // spring water
-      {{124, 122, 232}, {234, 128, 172}, {248, 190, 130}, {238, 232, 248}},  // dusk
-      {{132, 200, 142}, {224, 178,  98}, {146, 190, 214}, {236, 244, 224}},  // moss
-      {{238, 118,  92}, {248, 178, 108}, {244, 224, 198}, {252, 238, 222}},  // ember
-      {{140, 200, 236}, {148, 158, 240}, {206, 238, 244}, {236, 248, 252}},  // glacier
-      {{228, 120, 198}, {158, 122, 220}, {246, 198, 168}, {248, 236, 244}},  // orchid
+      {{255,  78,  66}, { 64, 132, 255}, {255, 214,  56}, {255, 255, 250}},  // poster
+      {{255,  72, 160}, { 40, 224, 238}, {176, 245,  84}, {250, 255, 255}},  // playground
+      {{255, 138,  30}, {236,  66, 190}, { 68, 220, 124}, {255, 252, 240}},  // fruit
+      {{  0, 226, 206}, {116, 112, 255}, {255, 202,  58}, {240, 255, 255}},  // sea
+      {{255, 124, 190}, { 92, 192, 255}, {124, 246, 190}, {255, 250, 255}},  // candy
+      {{154,  92, 255}, {255,  76, 122}, {255, 206,  72}, {255, 248, 252}},  // berry
     };
     for (unsigned i = 0; i < 3; ++i) ink[i] = palettes[palette][i];
     glow = palettes[palette][3];
@@ -587,7 +607,7 @@ class Painting {
     // survive five bits of red: it arrived on the display as two or three
     // horizontal bands, which is worse than no gradient at all. Depth is the
     // drawing's job here, not the ground's.
-    Color base = {ink[0].r * 0.016f + 2, ink[0].g * 0.016f + 3, ink[0].b * 0.02f + 6};
+    Color base = {ink[1].r * 0.012f + 3, ink[1].g * 0.012f + 4, ink[1].b * 0.016f + 9};
     uint16_t ground = uint16_t((std::min(int(base.r * (31.0f / 255.0f) + 0.5f), 31) << 11)
                              | (std::min(int(base.g * (63.0f / 255.0f) + 0.5f), 63) << 5)
                              | std::min(int(base.b * (31.0f / 255.0f) + 0.5f), 31));
