@@ -84,7 +84,7 @@ void setup() {
   sceneInfo.store(engine.displayInfo());
   M5.BtnA.setHoldThresh(650);
   M5.Display.setRotation(1);
-  M5.Display.setBrightness(55);
+  M5.Display.setBrightness(100);
   M5.Speaker.setVolume(volume);
   painting.render(0,0);
   M5.Display.pushImage(0,0,240,135,reinterpret_cast<const lgfx::rgb565_t*>(painting.pixels()));

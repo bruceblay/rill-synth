@@ -196,7 +196,7 @@ class Painting {
     d.tint = index % 3;
   }
   void renderCurrent(float dt) {
-    settle(241);
+    settle(244);
     float speed = (26 + evolving[3] * 46) * (0.72f + breath * 0.7f);
     unsigned active = 60 + unsigned(evolving[4] * float(drops.size() - 60));
     for (unsigned i = 0; i < active; ++i) {
@@ -211,7 +211,7 @@ class Painting {
       // Fade in and out at the ends of a life so no stroke starts or stops
       // abruptly; the field should look like it has no edges in time.
       float ends = std::min(1.0f, std::min((1 - d.life) * 7.0f, d.life * 3.2f));
-      float a = ends * (0.62f + breath * 0.70f);
+      float a = ends * (0.80f + breath * 0.80f);
       stroke(d.px, d.py, d.x, d.y, ink[d.tint], a);
       if (d.life > 0.82f) splat(d.x, d.y, glow, a * 0.7f);
     }
@@ -418,7 +418,9 @@ class Painting {
     unsigned roots = 2 + unsigned(unit() * 2.5f);
     for (unsigned i = 0; i < roots; ++i) {
       Node& n = nodes[nodeCount++];
-      n.x = fromLeft ? range(-2.0f, 8.0f) : range(232.0f, 242.0f);
+      // Inside the escape bound, not on it: a root placed at the very edge
+      // is killed on its first step and the family draws nothing at all.
+      n.x = fromLeft ? range(4.0f, 13.0f) : range(227.0f, 236.0f);
       n.y = range(18.0f, 117.0f);
       float spread = (unit() - 0.5f) * 0.09f;
       n.dx = (fromLeft ? 1.0f : -1.0f) * fcos(spread);
@@ -446,13 +448,13 @@ class Painting {
       n.dx = dx / length; n.dy = dy / length;
       float nx = n.x + n.dx * reach, ny = n.y + n.dy * reach;
       const Color& c1 = ink[n.depth % 3];
-      stroke(n.x, n.y, nx, ny, c1, 0.07f + n.weight * 0.075f);
+      stroke(n.x, n.y, nx, ny, c1, 0.14f + n.weight * 0.115f);
       if (n.weight > 1.3f) {
         // Heavy branches are drawn twice, offset across their direction, so
         // the structure tapers from a trunk to a hair.
         float ox = -n.dy * n.weight * 0.26f, oy = n.dx * n.weight * 0.26f;
-        stroke(n.x + ox, n.y + oy, nx + ox, ny + oy, c1, 0.035f + n.weight * 0.035f);
-        stroke(n.x - ox, n.y - oy, nx - ox, ny - oy, c1, 0.035f + n.weight * 0.035f);
+        stroke(n.x + ox, n.y + oy, nx + ox, ny + oy, c1, 0.06f + n.weight * 0.055f);
+        stroke(n.x - ox, n.y - oy, nx - ox, ny - oy, c1, 0.06f + n.weight * 0.055f);
       }
       n.x = nx; n.y = ny;
       n.weight *= 0.9955f;
@@ -465,7 +467,7 @@ class Painting {
       if (ax >= 0 && ax < int(width) && ay >= 0 && ay < int(height)) {
         uint16_t here = frame[unsigned(ay) * width + unsigned(ax)];
         unsigned lit = ((here >> 11) & 31) + (((here >> 5) & 63) >> 1) + (here & 31);
-        if (lit > 40) { n.alive = false; continue; }
+        if (lit > 74) { n.alive = false; continue; }
       }
       // A split costs both children some weight, so the structure thins as
       // it spreads and finishes on its own rather than filling the screen.
@@ -499,7 +501,7 @@ class Painting {
       unsigned ticks = 1 + unsigned(evolving[0] * 1.6f);
       for (unsigned i = 0; i < ticks; ++i) growStep();
       for (unsigned i = 0; i < nodeCount; ++i)
-        if (nodes[i].alive) bloom(nodes[i].x, nodes[i].y, 1.3f + nodes[i].weight * 0.7f, glow, 0.07f + breath * 0.16f);
+        if (nodes[i].alive) bloom(nodes[i].x, nodes[i].y, 1.3f + nodes[i].weight * 0.7f, glow, 0.13f + breath * 0.22f);
     } else {
       // Finished. The structure breathes with the music, dims, and a new one
       // starts from somewhere else.
@@ -510,10 +512,11 @@ class Painting {
       // stay under the decay or the same pixels burn out to white.
       for (unsigned i = 0; i < nodeCount; i += 2) {
         const Node& n = nodes[i];
-        if (n.depth < 3) continue;
-        bloom(n.x, n.y, 1.4f, ink[n.depth % 3], 0.012f + breath * 0.075f);
+        bloom(n.x, n.y, 1.4f, ink[n.depth % 3], 0.02f + breath * 0.10f);
       }
-      if (growthHold > 8.5f) { clear(); seedGrowth(); }
+      // A structure that died young is not worth holding on screen for the
+      // full pause.
+      if (growthHold > (nodeCount < 10 ? 1.5f : 8.5f)) { clear(); seedGrowth(); }
     }
   }
 
@@ -588,17 +591,26 @@ class Painting {
     breath = 0;
     for (auto& p : parameters) p = unit();
     pace = 0.75f + parameters[7] * 0.6f;
-    // Three clear, well separated hues and a white for highlights. The first
-    // set was built from muted neighbours on the wheel and read as dull on
-    // the panel. These are poster colours, far enough apart that a blend
-    // between any two of them stays a colour instead of turning to grey.
+    // Mid-century printing hues, not screen primaries. Two earlier attempts
+    // failed in opposite directions: muted neighbours on the wheel went dull,
+    // and saturated primaries went neon. These are taken from period spot
+    // palettes (1950s diner, 1960s flower child, 1970s sunshine and
+    // butterscotch) and kept at hues that do not exist on a colour wheel's
+    // corners: coral rather than red, tiffany rather than cyan, amber and
+    // harvest gold rather than yellow, verdigris rather than green.
+    //
+    // Two rules do most of the work. Every palette holds one cool against two
+    // warms, which is what keeps a blend of any two of them a colour rather
+    // than grey. And the highlight is cream, never white: a white highlight
+    // is what makes an emissive palette read as neon however careful the
+    // three inks are.
     static const Color palettes[6][4] = {
-      {{255,  78,  66}, { 64, 132, 255}, {255, 214,  56}, {255, 255, 250}},  // poster
-      {{255,  72, 160}, { 40, 224, 238}, {176, 245,  84}, {250, 255, 255}},  // playground
-      {{255, 138,  30}, {236,  66, 190}, { 68, 220, 124}, {255, 252, 240}},  // fruit
-      {{  0, 226, 206}, {116, 112, 255}, {255, 202,  58}, {240, 255, 255}},  // sea
-      {{255, 124, 190}, { 92, 192, 255}, {124, 246, 190}, {255, 250, 255}},  // candy
-      {{154,  92, 255}, {255,  76, 122}, {255, 206,  72}, {255, 248, 252}},  // berry
+      {{ 95, 178, 174}, {238, 150, 150}, {226, 186,  98}, {249, 229, 218}},  // diner
+      {{104, 199, 193}, {245, 127,  91}, {250, 202, 120}, {255, 244, 226}},  // sunshine
+      {{110, 160, 148}, {229,  90,  50}, {250, 190,  45}, {245, 232, 205}},  // flower child
+      {{206,  70,  48}, {226, 150,  30}, {250, 222, 186}, {255, 246, 230}},  // butterscotch
+      {{168, 200, 206}, {204,  92,  76}, {216, 146, 154}, {246, 231, 207}},  // foxy
+      {{ 60, 168, 152}, {216,  88, 150}, {232, 200,  88}, {246, 236, 214}},  // peace
     };
     for (unsigned i = 0; i < 3; ++i) ink[i] = palettes[palette][i];
     glow = palettes[palette][3];
@@ -607,7 +619,9 @@ class Painting {
     // survive five bits of red: it arrived on the display as two or three
     // horizontal bands, which is worse than no gradient at all. Depth is the
     // drawing's job here, not the ground's.
-    Color base = {ink[1].r * 0.012f + 3, ink[1].g * 0.012f + 4, ink[1].b * 0.016f + 9};
+    // A warm near-black, in the register of ink on dark paper rather than a
+    // blue screen black.
+    Color base = {ink[1].r * 0.014f + 5, ink[1].g * 0.012f + 4, ink[1].b * 0.012f + 5};
     uint16_t ground = uint16_t((std::min(int(base.r * (31.0f / 255.0f) + 0.5f), 31) << 11)
                              | (std::min(int(base.g * (63.0f / 255.0f) + 0.5f), 63) << 5)
                              | std::min(int(base.b * (31.0f / 255.0f) + 0.5f), 31));

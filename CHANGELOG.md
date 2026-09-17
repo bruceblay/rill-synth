@@ -7,7 +7,9 @@
 - Archived the original six families in `src/LightClassic.h`, unused by the firmware; the retained-behavior test now holds that archive to the historical fixture.
 - Slowed the interference field to about a third of its first speed.
 - Reworked the pendulum: the pen now moves slowly enough to be followed, its envelope bottoms out instead of collapsing, and a new figure starts every twenty seconds or so, so it never settles into a filled shape.
-- Replaced the palettes with six of clear, well separated hues.
+- Replaced the palettes with six taken from mid-century spot printing: a 1950s diner, 1960s flower child and foxy, 1970s sunshine and butterscotch, and a 60s peace palette. Coral rather than red, verdigris and tiffany rather than green and cyan, amber and harvest gold rather than yellow, and a cream highlight rather than white.
+- Raised the display brightness from 55 to 100 and lifted the dimmer families, after finding that mid-tones which read on a monitor disappear on the panel.
+- Fixed growth roots spawning outside the escape bound, where they died on their first step and left the screen blank; raised its crowding threshold to match the brighter strokes.
 - Not yet seen on hardware. The frame times are host measurements.
 
 ## 0.2.0 — 2026-09-12
