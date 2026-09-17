@@ -300,8 +300,15 @@ class Painting {
         const Layer& l = layers[i];
         float edge = l.base + l.amp1 * fsin(fx * l.freq1 + l.ph1 + phase * 0.012f)
                             + l.amp2 * fsin(fx * l.freq2 + l.ph2 - phase * 0.021f) + sway * float(i) * 0.12f;
-        unsigned mix3 = unsigned(l.tone * 3.0f) % 3;
-        const Color& body = ink[mix3];
+        // Bands blend between two inks rather than taking one flat. A band
+        // is the largest area any family fills, and a pure primary across
+        // that much of the screen is the one place these inks look cheap.
+        float toneMix = l.tone * 3.0f;
+        unsigned mix3 = unsigned(toneMix) % 3, next = (mix3 + 1) % 3;
+        float toneBlend = toneMix - float(unsigned(toneMix));
+        const Color body = {ink[mix3].r + (ink[next].r - ink[mix3].r) * toneBlend,
+                            ink[mix3].g + (ink[next].g - ink[mix3].g) * toneBlend,
+                            ink[mix3].b + (ink[next].b - ink[mix3].b) * toneBlend};
         int top = std::max(0, int(previous));
         int bottom = std::min(int(height) - 1, int(edge));
         float thickness = std::max(1.0f, edge - previous);
@@ -585,43 +592,34 @@ class Painting {
 
   void regenerate() {
     kind = count ? (kind + 1 + random() % (familyCount - 1)) % familyCount : random() % familyCount;
-    palette = count ? (palette + 1 + random() % 5) % 6 : random() % 6;
+    palette = count ? (palette + 1 + random() % 3) % 4 : random() % 4;
     ++count;
     phase = unit() * 40.0f;
     breath = 0;
     for (auto& p : parameters) p = unit();
     pace = 0.75f + parameters[7] * 0.6f;
-    // Mid-century printing hues, not screen primaries. Two earlier attempts
-    // failed in opposite directions: muted neighbours on the wheel went dull,
-    // and saturated primaries went neon. These are taken from period spot
-    // palettes (1950s diner, 1960s flower child, 1970s sunshine and
-    // butterscotch) and kept at hues that do not exist on a colour wheel's
-    // corners: coral rather than red, tiffany rather than cyan, amber and
-    // harvest gold rather than yellow, verdigris rather than green.
-    //
-    // Two rules do most of the work. Every palette holds one cool against two
-    // warms, which is what keeps a blend of any two of them a colour rather
-    // than grey. And the highlight is cream, never white: a white highlight
-    // is what makes an emissive palette read as neon however careful the
-    // three inks are.
-    static const Color palettes[6][4] = {
-      {{ 95, 178, 174}, {238, 150, 150}, {226, 186,  98}, {249, 229, 218}},  // diner
-      {{104, 199, 193}, {245, 127,  91}, {250, 202, 120}, {255, 244, 226}},  // sunshine
-      {{110, 160, 148}, {229,  90,  50}, {250, 190,  45}, {245, 232, 205}},  // flower child
-      {{206,  70,  48}, {226, 150,  30}, {250, 222, 186}, {255, 246, 230}},  // butterscotch
-      {{168, 200, 206}, {204,  92,  76}, {216, 146, 154}, {246, 231, 207}},  // foxy
-      {{ 60, 168, 152}, {216,  88, 150}, {232, 200,  88}, {246, 236, 214}},  // peace
-    };
+    // The same four palettes as Rill Drums, carried over unchanged. Their
+    // comment there records why: on-device swatch tests found that nudging
+    // red and green toward other hues to "correct" them looked worse, and
+    // that pure red, pure green, this blue and this purple are the ones that
+    // read true on the actual panel, with pink and cyan in the same clean
+    // territory. Nothing tuned on a monitor beat them on the device.
+    static const Color palettes[4][3] = {
+      {{255,   0,   0}, {  0, 255,   0}, {  0,  90, 255}},
+      {{160,   0, 255}, {255,  20, 147}, {  0,  90, 255}},
+      {{255,   0,   0}, {160,   0, 255}, {  0, 220, 255}},
+      {{  0, 255,   0}, {  0,  90, 255}, {255,  20, 147}}};
     for (unsigned i = 0; i < 3; ++i) ink[i] = palettes[palette][i];
-    glow = palettes[palette][3];
+    // Hot white cores, used only where a mark needs a highlight: a tip, a
+    // pen head, the lit edge of a band.
+    glow = {255, 255, 255};
     // One ground colour for the whole screen, tinted toward the palette and
     // held within a step of black. A gradient was tried first and could not
     // survive five bits of red: it arrived on the display as two or three
     // horizontal bands, which is worse than no gradient at all. Depth is the
     // drawing's job here, not the ground's.
-    // A warm near-black, in the register of ink on dark paper rather than a
-    // blue screen black.
-    Color base = {ink[1].r * 0.014f + 5, ink[1].g * 0.012f + 4, ink[1].b * 0.012f + 5};
+    // Rill Drums' ground, so the two instruments sit on the same dark.
+    Color base = {12, 14, 24};
     uint16_t ground = uint16_t((std::min(int(base.r * (31.0f / 255.0f) + 0.5f), 31) << 11)
                              | (std::min(int(base.g * (63.0f / 255.0f) + 0.5f), 63) << 5)
                              | std::min(int(base.b * (31.0f / 255.0f) + 0.5f), 31));
