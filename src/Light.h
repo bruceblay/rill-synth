@@ -23,16 +23,14 @@ namespace light {
 class Painting {
  public:
   static constexpr unsigned width = 240, height = 135;
-  static constexpr unsigned familyCount = 6;
-  enum Family : unsigned { Weave = 0, Contour, Strata, Pendulum, Growth, Eclipse };
+  static constexpr unsigned familyCount = 8;
+  enum Family : unsigned { Contour = 0, Pendulum, Growth, Eclipse, Skyline, Truchet, Tiles, Parade };
 
  private:
   struct Color { float r, g, b; };
   // Weave: one pen, with the point it came from so a step can be drawn as a
   // segment rather than a dot.
-  struct Pen { float x, y, px, py, speed, life; unsigned tint; bool down; };
   // Strata: a settled band, identified by the contour of its lower edge.
-  struct Layer { float base, target, amp1, freq1, ph1, amp2, freq2, ph2, tone; unsigned rim; };
   // Growth: a branch tip. Dead tips stay in the array as terminals.
   struct Node { float x, y, dx, dy, weight; uint8_t depth; bool alive; };
   // Eclipse: a flat disc or a punched ring, drifting on its own two-rate path.
@@ -51,12 +49,6 @@ class Painting {
   Color groundColor{232, 220, 192};
   uint16_t ground = 0;
 
-  std::array<Pen, 24> pens{};
-  unsigned penCount = 0;
-  float weaveAt = 0;
-  std::array<Layer, 14> layers{};
-  unsigned layerCount = 0;
-  float settleAt = 0;
   float figureT = 0, figureAt = 0;
   std::array<float, 4> figureFreq{}, figurePhase{}, figureSize{};
   std::array<Node, 168> nodes{};
@@ -64,10 +56,21 @@ class Painting {
   float growthHold = 0;
   std::array<Body, 9> bodies{};
   unsigned bodyCount = 0;
+  std::array<uint8_t, 165> cells{};  // Truchet: 15 x 11
+  float turnAt = 0;
+  uint32_t scene = 1;                // fixed per generation; the hash-built families read it
 
   unsigned random() { rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5; return rng; }
   float unit() { return float(random() >> 8) / 16777216.0f; }
   float range(float low, float high) { return low + unit() * (high - low); }
+  // Deterministic and stateless, so a skyline or a parade can be as long as
+  // it likes without storing itself.
+  static uint32_t hash(uint32_t a, uint32_t b) {
+    uint32_t h = a * 374761393u + b * 668265263u + 0x9e3779b9u;
+    h = (h ^ (h >> 13)) * 1274126177u;
+    return h ^ (h >> 16);
+  }
+  static float hashUnit(uint32_t a, uint32_t b) { return float(hash(a, b) >> 8) * (1.0f / 16777216.0f); }
   float evolveUnit() {
     evolutionRng ^= evolutionRng << 13; evolutionRng ^= evolutionRng >> 17; evolutionRng ^= evolutionRng << 5;
     return float(evolutionRng >> 8) / 16777216.0f;
@@ -139,6 +142,34 @@ class Painting {
       line(x0 + ox * offset, y0 + oy * offset, x1 + ox * offset, y1 + oy * offset, c);
     }
   }
+  void rect(float x0, float y0, float x1, float y1, uint16_t c) {
+    int top = std::max(0, int(y0)), bottom = std::min(int(height) - 1, int(y1));
+    for (int y = top; y <= bottom; ++y) span(y, int(x0), int(x1), c);
+  }
+  void triangle(float ax, float ay, float bx, float by, float cx, float cy, uint16_t c) {
+    int top = std::max(0, int(std::floor(std::min(ay, std::min(by, cy)))));
+    int bottom = std::min(int(height) - 1, int(std::ceil(std::max(ay, std::max(by, cy)))));
+    for (int y = top; y <= bottom; ++y) {
+      float scan = float(y) + 0.5f, crossings[3];
+      unsigned n = 0;
+      const float xs[3] = {ax, bx, cx}, ys[3] = {ay, by, cy};
+      for (unsigned i = 0; i < 3; ++i) {
+        unsigned j = (i + 1) % 3;
+        if ((ys[i] <= scan && ys[j] > scan) || (ys[j] <= scan && ys[i] > scan))
+          crossings[n++] = xs[i] + (scan - ys[i]) * (xs[j] - xs[i]) / (ys[j] - ys[i]);
+      }
+      if (n >= 2) span(y, int(std::ceil(std::min(crossings[0], crossings[1]))),
+                          int(std::floor(std::max(crossings[0], crossings[1]))), c);
+    }
+  }
+  // An ink let down toward the ground. Distance is carried this way rather
+  // than by darkening: on a daylight palette the far things are paler, not
+  // blacker, which is what haze actually does.
+  uint16_t wash(const Color& c, float mix) const {
+    return color({c.r + (groundColor.r - c.r) * mix,
+                  c.g + (groundColor.g - c.g) * mix,
+                  c.b + (groundColor.b - c.b) * mix});
+  }
   void clear() { frame.fill(ground); }
 
   void evolve(float dt) {
@@ -156,56 +187,6 @@ class Painting {
     return fsin(x * 0.0041f + t * 0.031f) * 0.30f
          + fsin(y * 0.0063f - t * 0.024f) * 0.26f
          + fsin((x + y * 0.7f) * 0.0027f + t * 0.017f) * 0.34f;
-  }
-
-  void placePens() {
-    penCount = 12 + unsigned(unit() * 11.0f);
-    for (unsigned i = 0; i < penCount; ++i) {
-      Pen& p = pens[i];
-      p.x = range(6.0f, 234.0f);
-      p.y = range(6.0f, 129.0f);
-      p.px = p.x; p.py = p.y;
-      p.speed = range(0.7f, 1.5f);
-      p.life = range(3.0f, 9.0f);
-      p.tint = i % 3;
-      p.down = true;
-    }
-    weaveAt = range(16.0f, 26.0f);
-  }
-  void renderWeave(float dt) {
-    // Nothing fades. The pens draw over a fixed number of seconds and the
-    // sheet fills the way a plotter drawing does, then the page is changed.
-    weaveAt -= dt;
-    if (weaveAt <= 0) { clear(); placePens(); return; }
-    float speed = (26 + evolving[0] * 40) * (0.8f + breath * 0.5f);
-    for (unsigned i = 0; i < penCount; ++i) {
-      Pen& p = pens[i];
-      if (!p.down) continue;
-      // The field converges, so pens left running forever pile into the same
-      // few paths. Lifting one and setting it down elsewhere is what covers
-      // the sheet.
-      p.life -= dt;
-      if (p.life <= 0) {
-        p.life = range(3.0f, 9.0f);
-        p.x = range(6.0f, 234.0f); p.y = range(6.0f, 129.0f);
-        p.px = p.x; p.py = p.y;
-        continue;
-      }
-      float angle = flowAngle(p.x, p.y, phase);
-      p.px = p.x; p.py = p.y;
-      p.x += fcos(angle) * speed * p.speed * dt;
-      p.y += fsin(angle) * speed * p.speed * dt * 0.66f;
-      if (p.x < -4 || p.x > float(width) + 4 || p.y < -4 || p.y > float(height) + 4) {
-        // Off the sheet: the pen re-enters from the opposite edge rather than
-        // stopping, so the drawing keeps growing for its whole term.
-        p.x = p.x < 0 ? float(width) + 2 : (p.x > float(width) ? -2 : p.x);
-        p.y = p.y < 0 ? float(height) + 2 : (p.y > float(height) ? -2 : p.y);
-        p.px = p.x; p.py = p.y;
-        continue;
-      }
-      unsigned pixels = 1 + (i % 3 == 0 ? 1u : 0u);
-      band(p.px, p.py, p.x, p.y, pixels, color(ink[p.tint], step(i % 2)));
-    }
   }
 
   void renderContour() {
@@ -254,65 +235,6 @@ class Painting {
         }
       }
       if (last < levels) span(int(y), runStart, int(width) - 1, swatch[last]);
-    }
-  }
-
-  void pushLayer() {
-    for (unsigned i = layers.size() - 1; i > 0; --i) layers[i] = layers[i - 1];
-    Layer& l = layers[0];
-    l.base = 0;
-    l.target = range(7.0f, 16.5f);
-    l.amp1 = range(2.5f, 8.5f);
-    l.freq1 = range(0.0035f, 0.011f);
-    l.ph1 = unit();
-    l.amp2 = range(0.6f, 2.6f);
-    l.freq2 = range(0.016f, 0.038f);
-    l.ph2 = unit();
-    l.tone = unit();
-    l.rim = unsigned(unit() * 3.0f) % 3;
-    if (layerCount < layers.size()) ++layerCount;
-    float cumulative = 0;
-    for (unsigned i = 0; i < layerCount; ++i) { cumulative += layers[i].target; layers[i].target = cumulative; }
-  }
-  void renderStrata(float dt) {
-    settleAt -= dt;
-    if (settleAt <= 0) { settleAt = 5 + evolveUnit() * 5; pushLayer(); }
-    for (unsigned i = 0; i < layerCount; ++i) {
-      Layer& l = layers[i];
-      l.base += (l.target - l.base) * std::min(1.0f, dt * 0.85f);
-    }
-    float sway = evolving[0] * 4 - 2;
-    float swell = breath * 2.5f;
-    clear();
-    uint16_t body[14], rim[14];
-    for (unsigned i = 0; i < layerCount; ++i) {
-      // Each band is an ink, or that ink let down toward the ground. Mixing
-      // two inks instead was tried and turns a warm palette to mud: olive
-      // into plum is brown, and a screen of that is all it is.
-      static const float tints[3] = {0.0f, 0.30f, 0.56f};
-      const Color& base = ink[i % 3];
-      float mix = tints[unsigned(layers[i].tone * 3.0f) % 3];
-      body[i] = color({base.r + (groundColor.r - base.r) * mix,
-                       base.g + (groundColor.g - base.g) * mix,
-                       base.b + (groundColor.b - base.b) * mix});
-      rim[i] = color(ink[layers[i].rim], 1);
-    }
-    for (unsigned x = 0; x < width; ++x) {
-      float fx = float(x);
-      float previous = -4;
-      for (unsigned i = 0; i < layerCount; ++i) {
-        const Layer& l = layers[i];
-        float edge = l.base + l.amp1 * fsin(fx * l.freq1 + l.ph1 + phase * 0.012f)
-                            + l.amp2 * fsin(fx * l.freq2 + l.ph2 - phase * 0.021f)
-                            + sway * float(i) * 0.12f + swell * float(i % 3);
-        int top = std::max(0, int(previous));
-        int bottom = std::min(int(height) - 1, int(edge));
-        for (int y = top; y <= bottom; ++y) frame[unsigned(y) * width + x] = body[i];
-        plot(int(x), int(edge), rim[i]);
-        previous = edge;
-        if (edge > float(height)) break;
-      }
-      for (int y = std::max(0, int(previous)); y < int(height); ++y) frame[unsigned(y) * width + x] = body[layerCount - 1];
     }
   }
 
@@ -478,6 +400,148 @@ class Painting {
     }
   }
 
+  void renderSkyline() {
+    // Three ranks of flat buildings at their own speeds, the far ones washed
+    // toward the sky. Every building is hashed from its own index, so the
+    // city is endless and never stored.
+    clear();
+    float sunX = 40 + evolving[0] * 160, sunY = 24 + evolving[1] * 22;
+    disc(sunX, sunY, 13 + breath * 3, wash(ink[2], 0.25f));
+    static const float speeds[3] = {1.6f, 4.2f, 9.0f};
+    static const float washes[3] = {0.62f, 0.34f, 0.0f};
+    static const float bases[3] = {96, 112, 132};
+    static const float lots[3] = {21, 26, 34};
+    for (unsigned rank = 0; rank < 3; ++rank) {
+      float scroll = phase * speeds[rank] + float(rank) * 137.0f;
+      float lot = lots[rank];
+      uint16_t stone = wash(ink[rank % 3], washes[rank]);
+      uint16_t lit = wash(ink[(rank + 2) % 3], washes[rank] * 0.5f);
+      int first = int(std::floor(scroll / lot)) - 1;
+      for (int slot = first; float(slot) * lot - scroll < float(width) + lot; ++slot) {
+        uint32_t id = uint32_t(slot * 7 + int(rank) * 991 + int(scene & 0xffffu));
+        float x = float(slot) * lot - scroll;
+        float w = lot * (0.62f + hashUnit(id, 1) * 0.3f);
+        float top = bases[rank] - (14 + hashUnit(id, 2) * (28 + float(rank) * 22));
+        rect(x, top, x + w, bases[rank], stone);
+        if (hashUnit(id, 3) < 0.35f) {
+          // A water tank or a sign box on the roof, the thing that makes a
+          // flat block read as a building.
+          float bw = w * 0.34f, bx = x + w * (0.1f + hashUnit(id, 4) * 0.5f);
+          rect(bx, top - 5 - hashUnit(id, 5) * 4, bx + bw, top, stone);
+        }
+        if (rank == 0) continue;
+        for (float wy = top + 4; wy < bases[rank] - 3; wy += 6)
+          for (float wx = x + 3; wx < x + w - 2; wx += 5)
+            if (hashUnit(id, uint32_t(wy) * 31u + uint32_t(wx)) < 0.42f + breath * 0.2f)
+              rect(wx, wy, wx + 1, wy + 2, lit);
+      }
+    }
+  }
+
+  void placeTiling() {
+    for (unsigned i = 0; i < cells.size(); ++i) cells[i] = uint8_t(random() & 3u);
+    turnAt = 0;
+  }
+  void renderTruchet(float dt) {
+    // Quarter arcs on a grid. Every cell joins its neighbours whichever way it
+    // is turned, so the pattern is always a continuous set of paths; turning a
+    // few cells at a time keeps re-routing them.
+    turnAt -= dt;
+    if (turnAt <= 0) {
+      turnAt = 0.35f + evolveUnit() * 0.5f;
+      unsigned turns = 1 + unsigned(evolveUnit() * 4.0f);
+      for (unsigned i = 0; i < turns; ++i) {
+        unsigned at = random() % cells.size();
+        cells[at] = uint8_t((cells[at] + 1 + (random() & 1u)) & 3u);
+      }
+    }
+    clear();
+    constexpr unsigned columns = 15, rows = 11;
+    const float size = float(width) / float(columns);
+    unsigned thickness = 2 + unsigned(parameters[2] * 2.0f);
+    for (unsigned row = 0; row < rows; ++row)
+      for (unsigned col = 0; col < columns; ++col) {
+        unsigned index = row * columns + col;
+        float x = float(col) * size, y = float(row) * size - 3;
+        uint16_t c = color(ink[(col + row + cells[index]) % 3]);
+        // Two arcs per cell, cornered on opposite sides.
+        for (unsigned half = 0; half < 2; ++half) {
+          unsigned corner = (cells[index] + half * 2u) & 3u;
+          float cx = (corner == 1 || corner == 2) ? x + size : x;
+          float cy = (corner >= 2) ? y + size : y;
+          // The arcs draw in a little as the music gets louder, which pulls
+          // the paths apart and lets the ground through between them.
+          float r = size * (0.5f - breath * 0.05f);
+          float px = 0, py = 0;
+          for (unsigned seg = 0; seg <= 8; ++seg) {
+            float a = float(corner) * 0.25f + float(seg) * (0.25f / 8.0f);
+            float ax = cx + fcos(a) * r, ay = cy + fsin(a) * r;
+            if (seg) band(px, py, ax, ay, thickness, c);
+            px = ax; py = ay;
+          }
+        }
+      }
+  }
+
+  void renderTiles() {
+    // A grid of flat squares breathing in a travelling wave. Nothing here is
+    // drawn on top of anything else, which is what keeps it calm.
+    clear();
+    unsigned columns = 8 + unsigned(parameters[3] * 5.0f), rows = 5 + unsigned(parameters[4] * 3.0f);
+    float cw = float(width) / float(columns), ch = float(height) / float(rows);
+    float angle = evolving[2] * 1.0f;
+    float dx = fcos(angle) * 0.9f, dy = fsin(angle) * 0.9f;
+    for (unsigned row = 0; row < rows; ++row)
+      for (unsigned col = 0; col < columns; ++col) {
+        float u = (float(col) + 0.5f) / float(columns), v = (float(row) + 0.5f) / float(rows);
+        float travel = u * dx + v * dy;
+        float w1 = fsin(travel * (1.0f + evolving[3] * 2.5f) + phase * 0.11f);
+        float w2 = fsin(travel * 3.0f - phase * 0.07f + evolving[4]);
+        float size = 0.22f + 0.62f * (0.5f + 0.5f * w1) + breath * 0.14f;
+        float half = std::min(cw, ch) * 0.5f * std::min(1.4f, size);
+        float cx = float(col) * cw + cw * 0.5f, cy = float(row) * ch + ch * 0.5f;
+        unsigned tint = unsigned((w2 * 0.5f + 0.5f) * 3.0f) % 3;
+        static const float tints[3] = {0.0f, 0.34f, 0.0f};
+        rect(cx - half, cy - half, cx + half, cy + half,
+             wash(ink[tint], tints[(col + row) % 3]));
+      }
+  }
+
+  void renderParade() {
+    // Things going past, on a ground line: a disc, a box, a box with a roof,
+    // a tree. Each is hashed from its place in the queue, so the procession
+    // never repeats and nothing is kept.
+    clear();
+    float horizon = 96 + evolving[0] * 14;
+    rect(0, horizon, float(width) - 1, float(height) - 1, wash(ink[1], 0.55f));
+    for (unsigned rank = 0; rank < 2; ++rank) {
+      float speed = rank ? 10.0f : 4.0f;
+      float lot = rank ? 46.0f : 62.0f;
+      float scroll = phase * speed + float(rank) * 311.0f;
+      float baseline = horizon + (rank ? 22.0f : 4.0f);
+      float scale = rank ? 1.0f : 0.72f;
+      int first = int(std::floor(scroll / lot)) - 1;
+      for (int slot = first; float(slot) * lot - scroll < float(width) + lot; ++slot) {
+        uint32_t id = uint32_t(slot * 13 + int(rank) * 617 + int(scene & 0xffffu));
+        float x = float(slot) * lot - scroll + lot * 0.5f;
+        float size = (12 + hashUnit(id, 1) * 16) * scale * (1.0f + breath * 0.12f);
+        uint16_t c = wash(ink[hash(id, 2) % 3], rank ? 0.0f : 0.3f);
+        switch (hash(id, 3) % 4) {
+          case 0: disc(x, baseline - size, size, c); break;
+          case 1: rect(x - size, baseline - size * 1.5f, x + size, baseline, c); break;
+          case 2:
+            rect(x - size * 0.8f, baseline - size, x + size * 0.8f, baseline, c);
+            triangle(x - size, baseline - size, x + size, baseline - size, x, baseline - size * 2.1f, c);
+            break;
+          default:
+            rect(x - size * 0.16f, baseline - size, x + size * 0.16f, baseline, wash(ink[2], 0.2f));
+            disc(x, baseline - size * 1.3f, size * 0.75f, c);
+            break;
+        }
+      }
+    }
+  }
+
  public:
   explicit Painting(uint32_t value = 17) : rng(value ? value : 1) {
     for (unsigned i = 0; i < wave.size(); ++i) wave[i] = std::sin(float(i) * (6.283185307f / 256.0f));
@@ -522,15 +586,12 @@ class Painting {
     evolutionRng = (rng ^ 0x85ebca6bu) | 1u;
     evolutionAt = 0;
     for (unsigned i = 0; i < goals.size(); ++i) evolving[i] = goals[i] = evolveUnit();
-    placePens();
-    layerCount = 0;
-    settleAt = 0;
-    for (unsigned i = 0; i < 13; ++i) pushLayer();
-    for (unsigned i = 0; i < layerCount; ++i) layers[i].base = layers[i].target;
     newFigure();
     growthHold = 0;
     seedGrowth();
     placeBodies();
+    placeTiling();
+    scene = (rng ^ 0xc2b2ae35u) | 1u;
     clear();
   }
 
@@ -540,17 +601,20 @@ class Painting {
 
   void render(float seconds, float audio) {
     seconds = std::max(0.0f, std::min(0.1f, seconds));
+    const float dt = seconds;
     phase += seconds * pace;
     if (phase > 100000.0f) phase -= 100000.0f;
     breath += (std::max(0.0f, std::min(1.0f, audio)) - breath) * std::min(1.0f, seconds * 5);
     evolve(seconds);
     switch (kind) {
-      case Weave: renderWeave(seconds); break;
       case Contour: renderContour(); break;
-      case Strata: renderStrata(seconds); break;
       case Pendulum: renderPendulum(seconds); break;
       case Growth: renderGrowth(seconds); break;
-      default: renderEclipse(); break;
+      case Eclipse: renderEclipse(); break;
+      case Skyline: renderSkyline(); break;
+      case Truchet: renderTruchet(dt); break;
+      case Tiles: renderTiles(); break;
+      default: renderParade(); break;
     }
   }
 };
