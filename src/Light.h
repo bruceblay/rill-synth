@@ -77,6 +77,7 @@ class Painting {
   static constexpr unsigned reefW = 120, reefH = 68;
   std::array<int16_t, reefW * reefH> reefU{}, reefV{};
   int32_t feed = 150, kill = 266;
+  float feedBase = 150, killBase = 266, feedRate = 0, killRate = 0, feedBias = 0;
   float dropAt = 0;
   // Tiles: the last few seconds of the music, so a swell can travel across
   // the grid instead of every tile answering the same instant.
@@ -518,7 +519,11 @@ class Painting {
       Whorl& w = whorls[i];
       w.x = range(45.0f, 195.0f);
       w.y = range(28.0f, 107.0f);
-      w.charge = i == 0 ? range(0.9f, 1.6f) : (unit() < 0.55f ? range(-1.3f, -0.6f) : range(0.6f, 1.3f));
+      // Whole turns only. atan2 jumps by exactly one turn across its branch
+      // cut, and a whole number of turns is invisible to a sine; any other
+      // charge leaves a seam running out of the core to the edge of the
+      // frame, which is the line that kept showing up across the ridges.
+      w.charge = float(1 + int(unit() * 1.7f)) * (i == 0 ? 1.0f : (unit() < 0.55f ? -1.0f : 1.0f));
       // Near a core the ridges are concentric, which is what makes a loop or
       // a whorl; the charge on top of that is what opens it into a spiral or
       // forks it into a delta. Away from the core the linear flow takes over.
@@ -558,18 +563,25 @@ class Painting {
       for (unsigned x = 0; x < width; ++x) {
         float fx = float(x) + 0.5f;
         float phi = fx * dirX + fy * dirY + drift;
+        float warp = 0;
         for (unsigned i = 0; i < whorlCount; ++i) {
           float dx = fx - cx[i], dy = fy - cy[i];
           float d2 = dx * dx + dy * dy;
+          // The angular term carries no weight: weighting it would scale the
+          // branch-cut jump to something other than a whole turn and bring
+          // the seam straight back. Only the concentric term is windowed.
           float weight = reach2[i] / (reach2[i] + d2);
-          phi += weight * (radial[i] * std::sqrt(d2) + charge[i] * fatan2(dy, dx));
+          float d = std::sqrt(d2);
+          if (i == 0) warp = d;
+          phi += weight * radial[i] * d + charge[i] * fatan2(dy, dx);
         }
         float band_ = fsin(phi);
         if (band_ < -0.12f + breath * 0.22f) { frame[y * width + x] = valley; continue; }
-        // The colour boundary is warped by the ridge phase itself, so it
-        // wanders along the ridges instead of cutting a straight line across
-        // them.
-        float region = fsin(fx * regionA + fy * regionB + phi * 0.11f + t * 0.01f);
+        // Bent around the first core by its distance field, which is smooth
+        // everywhere. Warping this with the ridge phase instead put the
+        // branch cut through the colour regions, and warping it with the
+        // ridge value broke each ridge into dashes.
+        float region = fsin(fx * regionA + fy * regionB + warp * 0.0075f + t * 0.01f);
         frame[y * width + x] = region > 0 ? ridge0 : ridge1;
       }
     }
@@ -590,8 +602,17 @@ class Painting {
       {150, 242},  // 0.037 / 0.059, labyrinth
     };
     unsigned choice = random() % 5;
-    feed = rates[choice][0];
-    kill = rates[choice][1];
+    feedBase = float(rates[choice][0]);
+    killBase = float(rates[choice][1]);
+    // The rates wander slowly around the chosen point. Held still, a
+    // labyrinth grows into the space, reaches its steady state and then does
+    // nothing at all; moved a little, the same pattern keeps splitting and
+    // rejoining and never finishes.
+    feedRate = range(0.006f, 0.017f);
+    killRate = range(0.004f, 0.013f);
+    feedBias = 0;
+    feed = int32_t(feedBase);
+    kill = int32_t(killBase);
     for (unsigned i = 0; i < reefU.size(); ++i) { reefU[i] = 4096; reefV[i] = 0; }
     for (unsigned blob = 0; blob < 14; ++blob) {
       unsigned bx = 6 + random() % (reefW - 12), by = 6 + random() % (reefH - 12);
@@ -635,6 +656,20 @@ class Painting {
     // Sixteen reaction steps a frame. The chemistry runs far slower than a
     // frame rate, and at a handful of steps the pattern takes minutes to
     // become anything.
+    // How much of the field is alive, sampled every fourth cell. The
+    // wandering rates are what keep the pattern from settling, but left
+    // unwatched they wander out of the viable band and the whole reef dies,
+    // and a dead field stays dead however many colonies are dropped into it.
+    unsigned alive = 0, sampled = 0;
+    for (unsigned i = 0; i < reefV.size(); i += 4) { if (reefV[i] > 320) ++alive; ++sampled; }
+    float coverage = float(alive) / float(sampled);
+    // A slow hand on the tiller: feeding more and killing less both favour
+    // growth, so one correction steers both.
+    feedBias += (0.30f - coverage) * 26.0f * dt;
+    feedBias = std::max(-16.0f, std::min(22.0f, feedBias));
+    // Louder passages feed the reef, quiet ones starve it back.
+    feed = int32_t(feedBase + fsin(phase * feedRate) * 15.0f + breath * 10.0f + feedBias);
+    kill = int32_t(killBase + fsin(phase * killRate + 0.37f) * 8.0f - feedBias * 0.32f);
     for (unsigned i = 0; i < 16; ++i) stepReef();
     float high = 900 - breath * 260.0f, low = 320 - breath * 120.0f;
     uint16_t shell = color(ink[0]), flesh = color(ink[1]), sand = wash(ink[2], 0.55f);
