@@ -14,14 +14,18 @@ int main(int argc,char** argv) {
   // on the clock before there is anything to photograph, while the field
   // families are complete on their first frame. These are settled moments,
   // in twelfths of a second, not a single arbitrary count.
-  static const unsigned settled[light::Painting::familyCount]={120,180,110,120,90,90,60,300};
+  // One tile per family in the rotation; a family held out of it is not
+  // shown here either.
+  static const unsigned settled[light::Painting::familyCount]={120,180,110,120,90,150,60,300};
   auto pixels=std::unique_ptr<std::array<uint16_t,width*height>>(new std::array<uint16_t,width*height>{});
-  for(unsigned family=0;family<light::Painting::familyCount;++family) {
+  pixels->fill(0xDEB9);  // paper, so a slot left empty by a hidden family is not a black hole
+  for(unsigned slot=0;slot<light::Painting::rotationCount;++slot) {
+    unsigned family=light::Painting::familyAt(slot);
     auto painting=std::unique_ptr<light::Painting>(new light::Painting(17));
     while(painting->visualFamily()!=family) painting->regenerate();
     for(unsigned frame=0;frame<settled[family];++frame) painting->render(1.0f/12,.35f);
     for(unsigned y=0;y<135;++y) for(unsigned x=0;x<240;++x)
-      (*pixels)[(y+(family/4)*135)*width+x+(family%4)*240]=painting->pixels()[y*240+x];
+      (*pixels)[(y+(slot/4)*135)*width+x+(slot%4)*240]=painting->pixels()[y*240+x];
   }
   std::ofstream out(argv[1],std::ios::binary);
   out<<"P6\n"<<width*2<<' '<<height*2<<"\n255\n";

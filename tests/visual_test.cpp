@@ -22,12 +22,15 @@ int main() {
     a->render(1.0f/12,0.4f); b->render(1.0f/12,0.4f);
     assert(hash(*a)==hash(*b));
   }
-  assert(seen==(1u<<light::Painting::familyCount)-1);
+  unsigned rotating=0;
+  for(unsigned i=0;i<light::Painting::rotationCount;++i) rotating|=1u<<light::Painting::familyAt(i);
+  assert(seen==rotating);
   assert(hash(*a)!=initial && a->generation()==61);
   a->render(0.1f,1); b->render(0.1f,0);
   assert(hash(*a)!=hash(*b));
   // Every family animates and responds; a shake is visibly different immediately.
-  for(unsigned family=0;family<light::Painting::familyCount;++family) {
+  for(unsigned slot=0;slot<light::Painting::rotationCount;++slot) {
+    unsigned family=light::Painting::familyAt(slot);
     a->seed(17); b->seed(17);
     while(a->visualFamily()!=family) { a->regenerate(); b->regenerate(); }
     a->render(0,0); auto start=hash(*a);

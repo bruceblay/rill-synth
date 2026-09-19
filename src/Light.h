@@ -25,6 +25,13 @@ class Painting {
   static constexpr unsigned width = 240, height = 135;
   static constexpr unsigned familyCount = 8;
   enum Family : unsigned { Contour = 0, Pendulum, Growth, Eclipse, Truchet, Tiles, Ridges, Reef };
+  // Truchet is held out of the rotation rather than deleted: it is still
+  // built, still tested, and putting it back is one line here.
+  static constexpr unsigned rotationCount = 7;
+  static unsigned familyAt(unsigned i) {
+    static const unsigned rotation[rotationCount] = {Contour, Pendulum, Growth, Eclipse, Tiles, Ridges, Reef};
+    return rotation[i % rotationCount];
+  }
 
  private:
   struct Color { float r, g, b; };
@@ -71,6 +78,11 @@ class Painting {
   std::array<int16_t, reefW * reefH> reefU{}, reefV{};
   int32_t feed = 150, kill = 266;
   float dropAt = 0;
+  // Tiles: the last few seconds of the music, so a swell can travel across
+  // the grid instead of every tile answering the same instant.
+  std::array<float, 20> pulse{};
+  unsigned pulseHead = 0;
+  float pulseAt = 0;
 
   unsigned random() { rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5; return rng; }
   float unit() { return float(random() >> 8) / 16777216.0f; }
@@ -453,27 +465,47 @@ class Painting {
       }
   }
 
-  void renderTiles() {
-    // A grid of flat squares breathing in a travelling wave. Nothing here is
-    // drawn on top of anything else, which is what keeps it calm.
+  void renderTiles(float dt) {
+    // A grid of flat squares whose sizes are the last five seconds of the
+    // music, one column per quarter second, travelling across the grid.
+    // Driving them from a wave of their own instead made every tile change
+    // at once, all the time, which was frantic and had nothing to do with
+    // what was playing.
+    pulseAt -= dt;
+    if (pulseAt <= 0) {
+      pulseAt = 0.25f;
+      pulse[pulseHead] = breath;
+      pulseHead = (pulseHead + 1) % pulse.size();
+    }
     clear();
-    unsigned columns = 8 + unsigned(parameters[3] * 5.0f), rows = 5 + unsigned(parameters[4] * 3.0f);
+    unsigned columns = 7 + unsigned(parameters[3] * 4.0f), rows = 4 + unsigned(parameters[4] * 3.0f);
     float cw = float(width) / float(columns), ch = float(height) / float(rows);
-    float angle = evolving[2] * 1.0f;
+    float angle = evolving[2];
     float dx = fcos(angle) * 0.9f, dy = fsin(angle) * 0.9f;
+    // The tint moves at a tenth of the old rate, and only ever between
+    // neighbouring steps, so the grid changes colour slowly enough to watch.
+    static const float tints[3] = {0.0f, 0.34f, 0.0f};
     for (unsigned row = 0; row < rows; ++row)
       for (unsigned col = 0; col < columns; ++col) {
         float u = (float(col) + 0.5f) / float(columns), v = (float(row) + 0.5f) / float(rows);
         float travel = u * dx + v * dy;
-        float w1 = fsin(travel * (1.0f + evolving[3] * 2.5f) + phase * 0.11f);
-        float w2 = fsin(travel * 3.0f - phase * 0.07f + evolving[4]);
-        float size = 0.22f + 0.62f * (0.5f + 0.5f * w1) + breath * 0.14f;
-        float half = std::min(cw, ch) * 0.5f * std::min(1.4f, size);
+        // Interpolated between the two nearest samples, so a swell glides
+        // across the columns instead of stepping a column at a time.
+        unsigned slot = col % pulse.size();
+        unsigned age = (pulseHead + pulse.size() - 1 - slot) % pulse.size();
+        unsigned older = (age + pulse.size() - 1) % pulse.size();
+        float blend = 1.0f - pulseAt * 4.0f;
+        float heard = pulse[age] + (pulse[older] - pulse[age]) * std::max(0.0f, std::min(1.0f, blend));
+        // Rows answer the same moment at different depths, so a loud passage
+        // opens the column from the middle outward.
+        float depth = 1.0f - std::abs(v - 0.5f) * 1.4f;
+        float swell = heard * (0.45f + 0.55f * depth);
+        float sway = fsin(travel * (0.6f + evolving[3] * 1.2f) + phase * 0.022f) * 0.18f;
+        float size = 0.26f + 0.74f * swell + sway + breath * 0.12f;
+        float half = std::min(cw, ch) * 0.5f * std::max(0.06f, std::min(1.3f, size));
         float cx = float(col) * cw + cw * 0.5f, cy = float(row) * ch + ch * 0.5f;
-        unsigned tint = unsigned((w2 * 0.5f + 0.5f) * 3.0f) % 3;
-        static const float tints[3] = {0.0f, 0.34f, 0.0f};
-        rect(cx - half, cy - half, cx + half, cy + half,
-             wash(ink[tint], tints[(col + row) % 3]));
+        unsigned tint = unsigned((fsin(travel * 1.4f - phase * 0.015f + evolving[4]) * 0.5f + 0.5f) * 3.0f) % 3;
+        rect(cx - half, cy - half, cx + half, cy + half, wash(ink[tint], tints[(col + row) % 3]));
       }
   }
 
@@ -496,21 +528,27 @@ class Painting {
       w.driftY = range(-1.6f, 1.6f);
       w.phase = unit();
     }
-    ridgeScale = 0.085f + unit() * 0.055f;
+    ridgeScale = 0.085f + unit() * 0.045f;
     ridgeDir = unit();
   }
   void renderRidges() {
     float t = phase;
-    float dirX = fcos(ridgeDir) * ridgeScale, dirY = fsin(ridgeDir) * ridgeScale;
+    // The ridge spacing opens and closes with the music: the whole print
+    // breathes, which is the largest thing this family can do and the only
+    // one that reads across a room.
+    float scale = ridgeScale * (1.0f - breath * 0.16f);
+    float dirX = fcos(ridgeDir) * scale, dirY = fsin(ridgeDir) * scale;
     float cx[3], cy[3], charge[3], radial[3], reach2[3];
     for (unsigned i = 0; i < whorlCount; ++i) {
-      cx[i] = whorls[i].x + fsin(t * 0.013f + whorls[i].phase) * whorls[i].driftX * 6;
-      cy[i] = whorls[i].y + fsin(t * 0.011f + whorls[i].phase * 1.7f) * whorls[i].driftY * 6;
+      cx[i] = whorls[i].x + fsin(t * 0.042f + whorls[i].phase) * whorls[i].driftX * 9;
+      cy[i] = whorls[i].y + fsin(t * 0.035f + whorls[i].phase * 1.7f) * whorls[i].driftY * 9;
       charge[i] = whorls[i].charge;
       radial[i] = whorls[i].radial;
       reach2[i] = whorls[i].reach * whorls[i].reach;
     }
-    float drift = t * 0.02f;
+    // Ridges stream across the print at about three pixels a second. At the
+    // rate this drifted before, nothing appeared to be happening at all.
+    float drift = t * 0.38f;
     // Two inks across the print, in slow regions rather than per ridge, so a
     // single ridge changes colour along its length.
     float regionA = 0.004f + evolving[0] * 0.004f, regionB = 0.003f + evolving[1] * 0.005f;
@@ -630,7 +668,10 @@ class Painting {
   void seed(uint32_t value) { rng = value ? value : 1; count = 0; regenerate(); }
 
   void regenerate() {
-    kind = count ? (kind + 1 + random() % (familyCount - 1)) % familyCount : random() % familyCount;
+    unsigned slot = 0;
+    while (slot < rotationCount && familyAt(slot) != kind) ++slot;
+    slot = count ? (slot + 1 + random() % (rotationCount - 1)) % rotationCount : random() % rotationCount;
+    kind = familyAt(slot);
     palette = count ? (palette + 1 + random() % 5) % 6 : random() % 6;
     ++count;
     phase = unit() * 40.0f;
@@ -694,7 +735,7 @@ class Painting {
       case Growth: renderGrowth(seconds); break;
       case Eclipse: renderEclipse(); break;
       case Truchet: renderTruchet(dt); break;
-      case Tiles: renderTiles(); break;
+      case Tiles: renderTiles(dt); break;
       case Ridges: renderRidges(); break;
       default: renderReef(dt); break;
     }
