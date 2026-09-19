@@ -514,21 +514,26 @@ class Painting {
     // A fingerprint is concentric ridges bent around two or three phase
     // singularities: a positive one makes a loop or whorl, a negative one the
     // delta where three ridge families meet.
-    whorlCount = 2 + unsigned(unit() * 2.0f);
+    whorlCount = 3;
     for (unsigned i = 0; i < whorlCount; ++i) {
       Whorl& w = whorls[i];
-      w.x = range(45.0f, 195.0f);
-      w.y = range(28.0f, 107.0f);
+      // One core to a third of the frame, jittered. Placed at random they
+      // land on top of each other often enough that two of the three swirls
+      // are lost inside one.
+      w.x = 40.0f + float(i) * 60.0f + range(-16.0f, 16.0f);
+      w.y = range(26.0f, 109.0f);
       // Whole turns only. atan2 jumps by exactly one turn across its branch
       // cut, and a whole number of turns is invisible to a sine; any other
       // charge leaves a seam running out of the core to the edge of the
       // frame, which is the line that kept showing up across the ridges.
-      w.charge = float(1 + int(unit() * 1.7f)) * (i == 0 ? 1.0f : (unit() < 0.55f ? -1.0f : 1.0f));
+      w.charge = float(1 + int(unit() * 2.4f)) * (i == 0 ? 1.0f : (unit() < 0.55f ? -1.0f : 1.0f));
       // Near a core the ridges are concentric, which is what makes a loop or
       // a whorl; the charge on top of that is what opens it into a spiral or
       // forks it into a delta. Away from the core the linear flow takes over.
-      w.radial = range(0.09f, 0.16f) * (unit() < 0.5f ? -1.0f : 1.0f);
-      w.reach = range(26.0f, 62.0f);
+      // Both are pushed hard here: a weak core is just a kink in the flow,
+      // and the swirl is the thing worth looking at.
+      w.radial = range(0.17f, 0.30f) * (unit() < 0.5f ? -1.0f : 1.0f);
+      w.reach = range(38.0f, 84.0f);
       w.driftX = range(-2.6f, 2.6f);
       w.driftY = range(-1.6f, 1.6f);
       w.phase = unit();
@@ -573,7 +578,11 @@ class Painting {
           float weight = reach2[i] / (reach2[i] + d2);
           float d = std::sqrt(d2);
           if (i == 0) warp = d;
-          phi += weight * radial[i] * d + charge[i] * fatan2(dy, dx);
+          // The concentric term is eased off over the last few pixels into
+          // the core. At full strength all the way in, the spiral winds
+          // tighter than a pixel and the eye fills with a knot of moire
+          // instead of staying open.
+          phi += weight * radial[i] * (d2 / (d + 5.0f)) + charge[i] * fatan2(dy, dx);
         }
         float band_ = fsin(phi);
         if (band_ < -0.12f + breath * 0.22f) { frame[y * width + x] = valley; continue; }

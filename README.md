@@ -45,7 +45,7 @@ Shake to change the visual; tap the front button to generate new music and a new
 - **Growth** — branches cross the page from one side, splitting as they go and stopping where they meet ground already taken.
 - **Eclipse** — flat discs and punched rings drift past each other, and the composition is whatever their overlaps happen to make.
 - **Tiles** — a grid of flat squares holding the last five seconds of the music, a column every quarter second, travelling across the grid.
-- **Ridges** — ridges bent around two or three phase singularities, the way a fingerprint is: concentric near a core, flowing in the field between them.
+- **Ridges** — ridges bent around three cores, the way a fingerprint is: concentric and swirling close in, flowing in the field between them.
 - **Reef** — a Gray-Scott reaction, the chemistry behind both brain coral and fingerprints, run at half resolution and read at full so its edges stay organic.
 
 Everything is opaque shapes with hard edges: filled spans, discs, rings punched back to the ground, single-pixel lines. There is no additive blending, dithering or soft falloff anywhere in the renderer. The palettes are daylight ones, a coloured ground with three inks that sit on it, in the register of a faded photograph rather than of emitted light.
