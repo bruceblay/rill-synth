@@ -14,7 +14,7 @@ int main(int argc,char** argv) {
   // on the clock before there is anything to photograph, while the field
   // families are complete on their first frame. These are settled moments,
   // in twelfths of a second, not a single arbitrary count.
-  static const unsigned settled[light::Painting::familyCount]={120,180,110,120,90,150,90,90};
+  static const unsigned settled[light::Painting::familyCount]={120,180,110,120,90,90,60,300};
   auto pixels=std::unique_ptr<std::array<uint16_t,width*height>>(new std::array<uint16_t,width*height>{});
   for(unsigned family=0;family<light::Painting::familyCount;++family) {
     auto painting=std::unique_ptr<light::Painting>(new light::Painting(17));

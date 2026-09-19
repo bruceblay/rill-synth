@@ -24,7 +24,7 @@ class Painting {
  public:
   static constexpr unsigned width = 240, height = 135;
   static constexpr unsigned familyCount = 8;
-  enum Family : unsigned { Contour = 0, Pendulum, Growth, Eclipse, Skyline, Truchet, Tiles, Parade };
+  enum Family : unsigned { Contour = 0, Pendulum, Growth, Eclipse, Truchet, Tiles, Ridges, Reef };
 
  private:
   struct Color { float r, g, b; };
@@ -58,7 +58,19 @@ class Painting {
   unsigned bodyCount = 0;
   std::array<uint8_t, 165> cells{};  // Truchet: 15 x 11
   float turnAt = 0;
-  uint32_t scene = 1;                // fixed per generation; the hash-built families read it
+  uint32_t scene = 1;
+  // Ridges: the singularities a fingerprint is organised around.
+  struct Whorl { float x, y, charge, radial, reach, driftX, driftY, phase; };
+  std::array<Whorl, 3> whorls{};
+  unsigned whorlCount = 0;
+  float ridgeScale = 0.05f, ridgeDir = 0;
+  // Reef: one reaction-diffusion field at half resolution. Only one family
+  // runs at a time and a shake reseeds whichever one arrives, so this is the
+  // only large buffer any of them needs.
+  static constexpr unsigned reefW = 120, reefH = 68;
+  std::array<int16_t, reefW * reefH> reefU{}, reefV{};
+  int32_t feed = 150, kill = 266;
+  float dropAt = 0;
 
   unsigned random() { rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5; return rng; }
   float unit() { return float(random() >> 8) / 16777216.0f; }
@@ -71,6 +83,18 @@ class Painting {
     return h ^ (h >> 16);
   }
   static float hashUnit(uint32_t a, uint32_t b) { return float(hash(a, b) >> 8) * (1.0f / 16777216.0f); }
+  // Turns, like everything else here, and approximate: a true atan2 three
+  // times a pixel is more than this board has to spare.
+  static float fatan2(float y, float x) {
+    float ax = std::abs(x), ay = std::abs(y);
+    float a = std::min(ax, ay) / (std::max(ax, ay) + 1e-9f);
+    float s2 = a * a;
+    float r = ((-0.0464964749f * s2 + 0.15931422f) * s2 - 0.327622764f) * s2 * a + a;
+    if (ay > ax) r = 1.57079637f - r;
+    if (x < 0) r = 3.14159274f - r;
+    if (y < 0) r = -r;
+    return r * 0.15915494f;
+  }
   float evolveUnit() {
     evolutionRng ^= evolutionRng << 13; evolutionRng ^= evolutionRng >> 17; evolutionRng ^= evolutionRng << 5;
     return float(evolutionRng >> 8) / 16777216.0f;
@@ -145,22 +169,6 @@ class Painting {
   void rect(float x0, float y0, float x1, float y1, uint16_t c) {
     int top = std::max(0, int(y0)), bottom = std::min(int(height) - 1, int(y1));
     for (int y = top; y <= bottom; ++y) span(y, int(x0), int(x1), c);
-  }
-  void triangle(float ax, float ay, float bx, float by, float cx, float cy, uint16_t c) {
-    int top = std::max(0, int(std::floor(std::min(ay, std::min(by, cy)))));
-    int bottom = std::min(int(height) - 1, int(std::ceil(std::max(ay, std::max(by, cy)))));
-    for (int y = top; y <= bottom; ++y) {
-      float scan = float(y) + 0.5f, crossings[3];
-      unsigned n = 0;
-      const float xs[3] = {ax, bx, cx}, ys[3] = {ay, by, cy};
-      for (unsigned i = 0; i < 3; ++i) {
-        unsigned j = (i + 1) % 3;
-        if ((ys[i] <= scan && ys[j] > scan) || (ys[j] <= scan && ys[i] > scan))
-          crossings[n++] = xs[i] + (scan - ys[i]) * (xs[j] - xs[i]) / (ys[j] - ys[i]);
-      }
-      if (n >= 2) span(y, int(std::ceil(std::min(crossings[0], crossings[1]))),
-                          int(std::floor(std::max(crossings[0], crossings[1]))), c);
-    }
   }
   // An ink let down toward the ground. Distance is carried this way rather
   // than by darkening: on a daylight palette the far things are paler, not
@@ -400,44 +408,6 @@ class Painting {
     }
   }
 
-  void renderSkyline() {
-    // Three ranks of flat buildings at their own speeds, the far ones washed
-    // toward the sky. Every building is hashed from its own index, so the
-    // city is endless and never stored.
-    clear();
-    float sunX = 40 + evolving[0] * 160, sunY = 24 + evolving[1] * 22;
-    disc(sunX, sunY, 13 + breath * 3, wash(ink[2], 0.25f));
-    static const float speeds[3] = {1.6f, 4.2f, 9.0f};
-    static const float washes[3] = {0.62f, 0.34f, 0.0f};
-    static const float bases[3] = {96, 112, 132};
-    static const float lots[3] = {21, 26, 34};
-    for (unsigned rank = 0; rank < 3; ++rank) {
-      float scroll = phase * speeds[rank] + float(rank) * 137.0f;
-      float lot = lots[rank];
-      uint16_t stone = wash(ink[rank % 3], washes[rank]);
-      uint16_t lit = wash(ink[(rank + 2) % 3], washes[rank] * 0.5f);
-      int first = int(std::floor(scroll / lot)) - 1;
-      for (int slot = first; float(slot) * lot - scroll < float(width) + lot; ++slot) {
-        uint32_t id = uint32_t(slot * 7 + int(rank) * 991 + int(scene & 0xffffu));
-        float x = float(slot) * lot - scroll;
-        float w = lot * (0.62f + hashUnit(id, 1) * 0.3f);
-        float top = bases[rank] - (14 + hashUnit(id, 2) * (28 + float(rank) * 22));
-        rect(x, top, x + w, bases[rank], stone);
-        if (hashUnit(id, 3) < 0.35f) {
-          // A water tank or a sign box on the roof, the thing that makes a
-          // flat block read as a building.
-          float bw = w * 0.34f, bx = x + w * (0.1f + hashUnit(id, 4) * 0.5f);
-          rect(bx, top - 5 - hashUnit(id, 5) * 4, bx + bw, top, stone);
-        }
-        if (rank == 0) continue;
-        for (float wy = top + 4; wy < bases[rank] - 3; wy += 6)
-          for (float wx = x + 3; wx < x + w - 2; wx += 5)
-            if (hashUnit(id, uint32_t(wy) * 31u + uint32_t(wx)) < 0.42f + breath * 0.2f)
-              rect(wx, wy, wx + 1, wy + 2, lit);
-      }
-    }
-  }
-
   void placeTiling() {
     for (unsigned i = 0; i < cells.size(); ++i) cells[i] = uint8_t(random() & 3u);
     turnAt = 0;
@@ -507,37 +477,147 @@ class Painting {
       }
   }
 
-  void renderParade() {
-    // Things going past, on a ground line: a disc, a box, a box with a roof,
-    // a tree. Each is hashed from its place in the queue, so the procession
-    // never repeats and nothing is kept.
-    clear();
-    float horizon = 96 + evolving[0] * 14;
-    rect(0, horizon, float(width) - 1, float(height) - 1, wash(ink[1], 0.55f));
-    for (unsigned rank = 0; rank < 2; ++rank) {
-      float speed = rank ? 10.0f : 4.0f;
-      float lot = rank ? 46.0f : 62.0f;
-      float scroll = phase * speed + float(rank) * 311.0f;
-      float baseline = horizon + (rank ? 22.0f : 4.0f);
-      float scale = rank ? 1.0f : 0.72f;
-      int first = int(std::floor(scroll / lot)) - 1;
-      for (int slot = first; float(slot) * lot - scroll < float(width) + lot; ++slot) {
-        uint32_t id = uint32_t(slot * 13 + int(rank) * 617 + int(scene & 0xffffu));
-        float x = float(slot) * lot - scroll + lot * 0.5f;
-        float size = (12 + hashUnit(id, 1) * 16) * scale * (1.0f + breath * 0.12f);
-        uint16_t c = wash(ink[hash(id, 2) % 3], rank ? 0.0f : 0.3f);
-        switch (hash(id, 3) % 4) {
-          case 0: disc(x, baseline - size, size, c); break;
-          case 1: rect(x - size, baseline - size * 1.5f, x + size, baseline, c); break;
-          case 2:
-            rect(x - size * 0.8f, baseline - size, x + size * 0.8f, baseline, c);
-            triangle(x - size, baseline - size, x + size, baseline - size, x, baseline - size * 2.1f, c);
-            break;
-          default:
-            rect(x - size * 0.16f, baseline - size, x + size * 0.16f, baseline, wash(ink[2], 0.2f));
-            disc(x, baseline - size * 1.3f, size * 0.75f, c);
-            break;
+  void placeRidges() {
+    // A fingerprint is concentric ridges bent around two or three phase
+    // singularities: a positive one makes a loop or whorl, a negative one the
+    // delta where three ridge families meet.
+    whorlCount = 2 + unsigned(unit() * 2.0f);
+    for (unsigned i = 0; i < whorlCount; ++i) {
+      Whorl& w = whorls[i];
+      w.x = range(45.0f, 195.0f);
+      w.y = range(28.0f, 107.0f);
+      w.charge = i == 0 ? range(0.9f, 1.6f) : (unit() < 0.55f ? range(-1.3f, -0.6f) : range(0.6f, 1.3f));
+      // Near a core the ridges are concentric, which is what makes a loop or
+      // a whorl; the charge on top of that is what opens it into a spiral or
+      // forks it into a delta. Away from the core the linear flow takes over.
+      w.radial = range(0.09f, 0.16f) * (unit() < 0.5f ? -1.0f : 1.0f);
+      w.reach = range(26.0f, 62.0f);
+      w.driftX = range(-2.6f, 2.6f);
+      w.driftY = range(-1.6f, 1.6f);
+      w.phase = unit();
+    }
+    ridgeScale = 0.085f + unit() * 0.055f;
+    ridgeDir = unit();
+  }
+  void renderRidges() {
+    float t = phase;
+    float dirX = fcos(ridgeDir) * ridgeScale, dirY = fsin(ridgeDir) * ridgeScale;
+    float cx[3], cy[3], charge[3], radial[3], reach2[3];
+    for (unsigned i = 0; i < whorlCount; ++i) {
+      cx[i] = whorls[i].x + fsin(t * 0.013f + whorls[i].phase) * whorls[i].driftX * 6;
+      cy[i] = whorls[i].y + fsin(t * 0.011f + whorls[i].phase * 1.7f) * whorls[i].driftY * 6;
+      charge[i] = whorls[i].charge;
+      radial[i] = whorls[i].radial;
+      reach2[i] = whorls[i].reach * whorls[i].reach;
+    }
+    float drift = t * 0.02f;
+    // Two inks across the print, in slow regions rather than per ridge, so a
+    // single ridge changes colour along its length.
+    float regionA = 0.004f + evolving[0] * 0.004f, regionB = 0.003f + evolving[1] * 0.005f;
+    uint16_t ridge0 = color(ink[0]), ridge1 = color(ink[1]), valley = wash(ink[2], 0.72f);
+    for (unsigned y = 0; y < height; ++y) {
+      float fy = float(y) + 0.5f;
+      for (unsigned x = 0; x < width; ++x) {
+        float fx = float(x) + 0.5f;
+        float phi = fx * dirX + fy * dirY + drift;
+        for (unsigned i = 0; i < whorlCount; ++i) {
+          float dx = fx - cx[i], dy = fy - cy[i];
+          float d2 = dx * dx + dy * dy;
+          float weight = reach2[i] / (reach2[i] + d2);
+          phi += weight * (radial[i] * std::sqrt(d2) + charge[i] * fatan2(dy, dx));
         }
+        float band_ = fsin(phi);
+        if (band_ < -0.12f + breath * 0.22f) { frame[y * width + x] = valley; continue; }
+        // The colour boundary is warped by the ridge phase itself, so it
+        // wanders along the ridges instead of cutting a straight line across
+        // them.
+        float region = fsin(fx * regionA + fy * regionB + phi * 0.11f + t * 0.01f);
+        frame[y * width + x] = region > 0 ? ridge0 : ridge1;
+      }
+    }
+  }
+
+  void seedReef() {
+    // Gray-Scott, at feed and kill rates from the part of its parameter space
+    // that grows labyrinths and coral heads rather than dots or nothing.
+    // Feed and kill in twelve-bit fixed point. These five sit in the part of
+    // the parameter space that grows labyrinths, worms and coral heads; a
+    // kill much above 0.063 tips the whole field into dividing spots, which
+    // is a leopard, not a reef.
+    static const int16_t rates[5][2] = {
+      {119, 233},  // 0.029 / 0.057, maze
+      {160, 238},  // 0.039 / 0.058, worms
+      {143, 246},  // 0.035 / 0.060, coral heads
+      {131, 238},  // 0.032 / 0.058, wider maze
+      {150, 242},  // 0.037 / 0.059, labyrinth
+    };
+    unsigned choice = random() % 5;
+    feed = rates[choice][0];
+    kill = rates[choice][1];
+    for (unsigned i = 0; i < reefU.size(); ++i) { reefU[i] = 4096; reefV[i] = 0; }
+    for (unsigned blob = 0; blob < 14; ++blob) {
+      unsigned bx = 6 + random() % (reefW - 12), by = 6 + random() % (reefH - 12);
+      unsigned r = 2 + random() % 4;
+      for (unsigned y = by - r; y <= by + r; ++y)
+        for (unsigned x = bx - r; x <= bx + r; ++x) {
+          reefU[y * reefW + x] = 1024;
+          reefV[y * reefW + x] = 2048;
+        }
+    }
+    dropAt = range(9.0f, 16.0f);
+  }
+  void stepReef() {
+    // Wrapped at the edges, so the pattern has no walls to grow against.
+    for (unsigned y = 0; y < reefH; ++y) {
+      unsigned up = ((y + reefH - 1) % reefH) * reefW, down = ((y + 1) % reefH) * reefW, here = y * reefW;
+      for (unsigned x = 0; x < reefW; ++x) {
+        unsigned left = (x + reefW - 1) % reefW, right = (x + 1) % reefW;
+        int32_t u = reefU[here + x], v = reefV[here + x];
+        int32_t lapU = int32_t(reefU[here + left]) + reefU[here + right] + reefU[up + x] + reefU[down + x] - 4 * u;
+        int32_t lapV = int32_t(reefV[here + left]) + reefV[here + right] + reefV[up + x] + reefV[down + x] - 4 * v;
+        int32_t uvv = ((u * v) >> 12) * v >> 12;
+        int32_t du = ((41 * lapU) >> 8) - uvv + ((feed * (4096 - u)) >> 12);
+        int32_t dv = ((21 * lapV) >> 8) + uvv - (((feed + kill) * v) >> 12);
+        u += du; v += dv;
+        reefU[here + x] = int16_t(u < 0 ? 0 : (u > 4096 ? 4096 : u));
+        reefV[here + x] = int16_t(v < 0 ? 0 : (v > 4096 ? 4096 : v));
+      }
+    }
+  }
+  void renderReef(float dt) {
+    dropAt -= dt;
+    if (dropAt <= 0) {
+      // A new colony, dropped in every so often. Left alone the field settles
+      // and stops being worth watching.
+      dropAt = range(9.0f, 16.0f);
+      unsigned bx = 6 + random() % (reefW - 12), by = 6 + random() % (reefH - 12);
+      for (unsigned y = by - 3; y <= by + 3; ++y)
+        for (unsigned x = bx - 3; x <= bx + 3; ++x) { reefU[y * reefW + x] = 1024; reefV[y * reefW + x] = 2048; }
+    }
+    // Sixteen reaction steps a frame. The chemistry runs far slower than a
+    // frame rate, and at a handful of steps the pattern takes minutes to
+    // become anything.
+    for (unsigned i = 0; i < 16; ++i) stepReef();
+    float high = 900 - breath * 260.0f, low = 320 - breath * 120.0f;
+    uint16_t shell = color(ink[0]), flesh = color(ink[1]), sand = wash(ink[2], 0.55f);
+    // The chemistry runs at half resolution but the edges are found at full
+    // resolution, by reading the field between its cells. Thresholding the
+    // cells directly leaves every coral head with a two-pixel staircase
+    // around it, which is the one thing that would look computed.
+    for (unsigned y = 0; y < height; ++y) {
+      float gy = float(y) * 0.5f;
+      unsigned y0 = std::min(reefH - 2, unsigned(gy));
+      float fy = gy - float(y0);
+      const int16_t* rowA = &reefV[y0 * reefW];
+      const int16_t* rowB = rowA + reefW;
+      for (unsigned x = 0; x < width; ++x) {
+        float gx = float(x) * 0.5f;
+        unsigned x0 = std::min(reefW - 2, unsigned(gx));
+        float fx = gx - float(x0);
+        float top = float(rowA[x0]) + (float(rowA[x0 + 1]) - float(rowA[x0])) * fx;
+        float bottom = float(rowB[x0]) + (float(rowB[x0 + 1]) - float(rowB[x0])) * fx;
+        float v = top + (bottom - top) * fy;
+        frame[y * width + x] = v > high ? shell : (v > low ? flesh : sand);
       }
     }
   }
@@ -591,6 +671,8 @@ class Painting {
     seedGrowth();
     placeBodies();
     placeTiling();
+    placeRidges();
+    seedReef();
     scene = (rng ^ 0xc2b2ae35u) | 1u;
     clear();
   }
@@ -611,10 +693,10 @@ class Painting {
       case Pendulum: renderPendulum(seconds); break;
       case Growth: renderGrowth(seconds); break;
       case Eclipse: renderEclipse(); break;
-      case Skyline: renderSkyline(); break;
       case Truchet: renderTruchet(dt); break;
       case Tiles: renderTiles(); break;
-      default: renderParade(); break;
+      case Ridges: renderRidges(); break;
+      default: renderReef(dt); break;
     }
   }
 };
