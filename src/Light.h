@@ -6,19 +6,16 @@
 #include <cmath>
 #include <cstdint>
 
-// Six generative visual families, drawn as light on a dark ground.
+// Six generative visual families, drawn flat.
 //
-// The common material is a subpixel additive splat: every mark is laid down
-// with bilinear weights and dithered against moving hash noise, so a thin
-// stroke reads as a drawn line at 240x135 and repeated passes accumulate into
-// glow rather than into five-bit banding. Field renders dither against an
-// ordered matrix instead, which is steadier for a whole-screen gradient.
-// Three families (Current, Harmonograph, Delta) keep the previous frame and
-// let it decay, which makes the screen a long exposure of its own history;
-// the other three (Interference, Strata, Veil) resolve a whole field each
-// frame. All six drift through slow parameter goals, so a family revisited
-// minutes later is not the arrangement it was, and all six answer the audio
-// level through `breath` rather than jumping on transients.
+// Everything here is an opaque shape with a hard edge: filled spans, discs,
+// rings punched back to the ground, single-pixel lines, flat bands. There is
+// no additive blending, no dithering and no soft falloff anywhere in the
+// file, and a colour is either an ink or a fixed step down from it. An
+// earlier version of these same six families was built the other way, out of
+// dithered additive glow, and whatever the palette it read as neon: the glow
+// is what made it read that way, not the colours. This is the drawing
+// language Rill Drums uses, and the two instruments now share it.
 //
 // Shared by firmware and the host preview tools. No allocation, no locks;
 // the only sizeable state is the frame itself.
@@ -27,41 +24,46 @@ class Painting {
  public:
   static constexpr unsigned width = 240, height = 135;
   static constexpr unsigned familyCount = 6;
-  enum Family : unsigned { Current = 0, Interference, Strata, Harmonograph, Delta, Veil };
+  enum Family : unsigned { Weave = 0, Contour, Strata, Pendulum, Growth, Eclipse };
 
  private:
   struct Color { float r, g, b; };
-  // Current: one drifting mark, remembering where it was so it can be drawn
-  // as a segment rather than a dot.
-  struct Drop { float x, y, px, py, life, span, speed; unsigned tint; };
+  // Weave: one pen, with the point it came from so a step can be drawn as a
+  // segment rather than a dot.
+  struct Pen { float x, y, px, py, speed, life; unsigned tint; bool down; };
   // Strata: a settled band, identified by the contour of its lower edge.
-  struct Layer { float base, target, amp1, freq1, ph1, amp2, freq2, ph2, tone, glow; };
-  // Delta: a growing tip. Dead tips stay in the array as terminals so the
-  // finished structure can keep breathing.
+  struct Layer { float base, target, amp1, freq1, ph1, amp2, freq2, ph2, tone; unsigned rim; };
+  // Growth: a branch tip. Dead tips stay in the array as terminals.
   struct Node { float x, y, dx, dy, weight; uint8_t depth; bool alive; };
+  // Eclipse: a flat disc or a punched ring, drifting on its own two-rate path.
+  struct Body { float phase, rateX, rateY, spanX, spanY, radius, thickness; unsigned tint; bool hollow; };
 
   std::array<uint16_t, width * height> frame{};
-  std::array<uint16_t, height> rowGround{};
   std::array<float, 257> wave{};
 
   uint32_t rng = 1, evolutionRng = 1;
   unsigned kind = 0, palette = 0, count = 0;
   float phase = 0, breath = 0, pace = 1;
-  unsigned tick = 0;
   std::array<float, 8> parameters{};
   std::array<float, 8> evolving{}, goals{};
   float evolutionAt = 0;
-  Color ink[3]{}, glow{};
+  Color ink[3]{};
+  Color groundColor{232, 220, 192};
+  uint16_t ground = 0;
 
-  std::array<Drop, 88> drops{};
+  std::array<Pen, 24> pens{};
+  unsigned penCount = 0;
+  float weaveAt = 0;
   std::array<Layer, 14> layers{};
   unsigned layerCount = 0;
   float settleAt = 0;
-  float penT = 0, penDecay = 0, penEnvelope = 1, figureAt = 0;
-  std::array<float, 4> penFreq{}, penPhase{}, penSize{};
+  float figureT = 0, figureAt = 0;
+  std::array<float, 4> figureFreq{}, figurePhase{}, figureSize{};
   std::array<Node, 168> nodes{};
   unsigned nodeCount = 0, liveNodes = 0;
   float growthHold = 0;
+  std::array<Body, 9> bodies{};
+  unsigned bodyCount = 0;
 
   unsigned random() { rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5; return rng; }
   float unit() { return float(random() >> 8) / 16777216.0f; }
@@ -79,89 +81,65 @@ class Painting {
     float f = t * 256.0f;
     unsigned i = unsigned(f);
     if (i > 255) i = 255;
-    float frac = f - float(i);
-    return wave[i] + (wave[i + 1] - wave[i]) * frac;
+    return wave[i] + (wave[i + 1] - wave[i]) * (f - float(i));
   }
   float fcos(float turns) const { return fsin(turns + 0.25f); }
-  static float dither(int x, int y) {
-    static const uint8_t bayer[16] = {0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5};
-    return float(bayer[(y & 3) * 4 + (x & 3)]) * (1.0f / 16.0f);
-  }
-  static float grain(int x, int y) {
-    unsigned h = unsigned(x) * 374761393u + unsigned(y) * 668265263u;
-    h = (h ^ (h >> 13)) * 1274126177u;
-    return float((h >> 24) & 255) * (1.0f / 255.0f);
-  }
-  // The same hash, moved every frame. A still pattern would be rounded up in
-  // the same cells forever, which freezes the noise into the picture and
-  // leaves a permanent haze wherever the decay should have reached ground.
-  float shimmer(int x, int y) const { return grain(x + int(tick * 37u), y + int(tick * 17u)); }
 
-  void add(int x, int y, const Color& c, float a) {
-    if (a <= 0.0f || x < 0 || y < 0 || x >= int(width) || y >= int(height)) return;
-    a = std::min(a, 6.0f);
-    uint16_t& p = frame[unsigned(y) * width + unsigned(x)];
-    // Moving hash noise rather than the ordered matrix: accumulated strokes
-    // would otherwise show the matrix as a visible checkerboard.
-    float d = shimmer(x, y);
-    int r = int((p >> 11) & 31) + int(c.r * a * (31.0f / 255.0f) + d);
-    int g = int((p >> 5) & 63) + int(c.g * a * (63.0f / 255.0f) + d);
-    int b = int(p & 31) + int(c.b * a * (31.0f / 255.0f) + d);
-    p = uint16_t((std::min(r, 31) << 11) | (std::min(g, 63) << 5) | std::min(b, 31));
+  static uint16_t color(Color c, float shade = 1) {
+    unsigned r = unsigned(std::max(0.0f, std::min(255.0f, c.r * shade)));
+    unsigned g = unsigned(std::max(0.0f, std::min(255.0f, c.g * shade)));
+    unsigned b = unsigned(std::max(0.0f, std::min(255.0f, c.b * shade)));
+    return uint16_t(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
   }
-  // A mark placed between pixels: the weights are what make a one-pixel line
-  // read as a drawn stroke instead of a staircase.
-  void splat(float x, float y, const Color& c, float a) {
-    float fx = std::floor(x), fy = std::floor(y);
-    int xi = int(fx), yi = int(fy);
-    float u = x - fx, v = y - fy;
-    add(xi, yi, c, a * (1 - u) * (1 - v));
-    add(xi + 1, yi, c, a * u * (1 - v));
-    add(xi, yi + 1, c, a * (1 - u) * v);
-    add(xi + 1, yi + 1, c, a * u * v);
+  // Four steps, not a ramp. A continuous shade is a gradient by another name.
+  static float step(unsigned level) {
+    static const float steps[4] = {1.0f, 0.74f, 0.52f, 0.34f};
+    return steps[level & 3];
   }
-  void stroke(float x0, float y0, float x1, float y1, const Color& c, float a) {
-    float dx = x1 - x0, dy = y1 - y0;
-    int steps = int(std::max(std::abs(dx), std::abs(dy))) + 1;
-    steps = std::min(steps, 96);
-    float ix = dx / float(steps), iy = dy / float(steps);
+  void span(int y, int left, int right, uint16_t c) {
+    if (y < 0 || y >= int(height)) return;
+    left = std::max(0, left); right = std::min(int(width) - 1, right);
+    for (int x = left; x <= right; ++x) frame[unsigned(y) * width + unsigned(x)] = c;
+  }
+  void plot(int x, int y, uint16_t c) {
+    if (x < 0 || y < 0 || x >= int(width) || y >= int(height)) return;
+    frame[unsigned(y) * width + unsigned(x)] = c;
+  }
+  void disc(float cx, float cy, float r, uint16_t c) {
+    if (r < 0.5f) return;
+    int top = std::max(0, int(std::floor(cy - r))), bottom = std::min(int(height) - 1, int(std::ceil(cy + r)));
+    for (int y = top; y <= bottom; ++y) {
+      float v = (float(y) + 0.5f - cy) / r;
+      if (std::abs(v) > 1) continue;
+      float extent = r * std::sqrt(1 - v * v);
+      span(y, int(std::ceil(cx - extent)), int(std::floor(cx + extent)), c);
+    }
+  }
+  // The hole goes back to the ground colour rather than to a darker version
+  // of the ink, so a ring is genuinely hollow.
+  void ring(float cx, float cy, float r, float thickness, uint16_t c) {
+    disc(cx, cy, r, c);
+    if (r > thickness) disc(cx, cy, r - thickness, ground);
+  }
+  void line(float x0, float y0, float x1, float y1, uint16_t c) {
+    int steps = int(std::max(std::abs(x1 - x0), std::abs(y1 - y0))) + 1;
+    steps = std::min(steps, 320);
+    float ix = (x1 - x0) / float(steps), iy = (y1 - y0) / float(steps);
     float x = x0, y = y0;
-    for (int i = 0; i <= steps; ++i) { splat(x, y, c, a); x += ix; y += iy; }
+    for (int i = 0; i <= steps; ++i) { plot(int(x), int(y), c); x += ix; y += iy; }
   }
-  void bloom(float cx, float cy, float r, const Color& c, float a) {
-    int top = std::max(0, int(cy - r)), bottom = std::min(int(height) - 1, int(cy + r));
-    int left = std::max(0, int(cx - r)), right = std::min(int(width) - 1, int(cx + r));
-    float inv = 1.0f / (r * r);
-    for (int y = top; y <= bottom; ++y)
-      for (int x = left; x <= right; ++x) {
-        float dx = float(x) + 0.5f - cx, dy = float(y) + 0.5f - cy;
-        float falloff = 1 - (dx * dx + dy * dy) * inv;
-        if (falloff > 0) add(x, y, c, a * falloff * falloff);
-      }
-  }
-  // Decay toward the ground colour. The dither term is what stops a pixel
-  // one step above the ground from sitting there forever.
-  void settle(unsigned keep) {
-    for (unsigned y = 0; y < height; ++y) {
-      uint16_t ground = rowGround[y];
-      int gr = int((ground >> 11) & 31), gg = int((ground >> 5) & 63), gb = int(ground & 31);
-      for (unsigned x = 0; x < width; ++x) {
-        uint16_t& p = frame[y * width + x];
-        if (p == ground) continue;
-        int d = int(shimmer(int(x), int(y)) * 255.0f);
-        int r = gr + int((((p >> 11) & 31) - unsigned(gr)) * keep + unsigned(d)) / 256;
-        int g = gg + int((((p >> 5) & 63) - unsigned(gg)) * keep + unsigned(d)) / 256;
-        int b = gb + int(((p & 31) - unsigned(gb)) * keep + unsigned(d)) / 256;
-        p = uint16_t((std::min(std::max(r, 0), 31) << 11) | (std::min(std::max(g, 0), 63) << 5) | std::min(std::max(b, 0), 31));
-      }
+  // Width is whole pixels, laid side by side across the direction of travel.
+  void band(float x0, float y0, float x1, float y1, unsigned pixels, uint16_t c) {
+    float dx = x1 - x0, dy = y1 - y0;
+    float length = std::sqrt(dx * dx + dy * dy);
+    if (length < 0.0001f) { plot(int(x0), int(y0), c); return; }
+    float ox = -dy / length, oy = dx / length;
+    for (unsigned i = 0; i < pixels; ++i) {
+      float offset = float(i) - float(pixels - 1) * 0.5f;
+      line(x0 + ox * offset, y0 + oy * offset, x1 + ox * offset, y1 + oy * offset, c);
     }
   }
-  void clear() {
-    for (unsigned y = 0; y < height; ++y) {
-      uint16_t c = rowGround[y];
-      for (unsigned x = 0; x < width; ++x) frame[y * width + x] = c;
-    }
-  }
+  void clear() { frame.fill(ground); }
 
   void evolve(float dt) {
     evolutionAt -= dt;
@@ -172,52 +150,67 @@ class Painting {
     for (unsigned i = 0; i < goals.size(); ++i) evolving[i] += (goals[i] - evolving[i]) * dt * 0.4f;
   }
 
-  // Shared slow field. Current reads it for drift, Delta for the way a
-  // branch leans, so the two families feel like the same weather.
+  // Shared slow field. Weave reads it for drift, Growth for the way a branch
+  // leans, so the two families feel like the same weather.
   float flowAngle(float x, float y, float t) const {
     return fsin(x * 0.0041f + t * 0.031f) * 0.30f
          + fsin(y * 0.0063f - t * 0.024f) * 0.26f
          + fsin((x + y * 0.7f) * 0.0027f + t * 0.017f) * 0.34f;
   }
 
-  void respawn(Drop& d, unsigned index) {
-    // Sources wander, so a family left running keeps finding new paths
-    // through the field instead of re-tracing the first ones.
-    float sx = 30 + evolving[0] * 180, sy = 20 + evolving[1] * 95;
-    float spread = 44 + evolving[2] * 90;
-    d.x = sx + (unit() - 0.5f) * spread * 2;
-    d.y = sy + (unit() - 0.5f) * spread;
-    d.x = std::min(std::max(d.x, -6.0f), float(width) + 6);
-    d.y = std::min(std::max(d.y, -6.0f), float(height) + 6);
-    d.px = d.x; d.py = d.y;
-    d.life = 1;
-    d.span = range(1.6f, 4.8f);
-    d.speed = range(0.55f, 1.45f);
-    d.tint = index % 3;
+  void placePens() {
+    penCount = 12 + unsigned(unit() * 11.0f);
+    for (unsigned i = 0; i < penCount; ++i) {
+      Pen& p = pens[i];
+      p.x = range(6.0f, 234.0f);
+      p.y = range(6.0f, 129.0f);
+      p.px = p.x; p.py = p.y;
+      p.speed = range(0.7f, 1.5f);
+      p.life = range(3.0f, 9.0f);
+      p.tint = i % 3;
+      p.down = true;
+    }
+    weaveAt = range(16.0f, 26.0f);
   }
-  void renderCurrent(float dt) {
-    settle(244);
-    float speed = (26 + evolving[3] * 46) * (0.72f + breath * 0.7f);
-    unsigned active = 60 + unsigned(evolving[4] * float(drops.size() - 60));
-    for (unsigned i = 0; i < active; ++i) {
-      Drop& d = drops[i];
-      d.life -= dt / d.span;
-      bool gone = d.life <= 0 || d.x < -8 || d.x > float(width) + 8 || d.y < -8 || d.y > float(height) + 8;
-      if (gone) { respawn(d, i); continue; }
-      float angle = flowAngle(d.x, d.y, phase);
-      d.px = d.x; d.py = d.y;
-      d.x += fcos(angle) * speed * d.speed * dt;
-      d.y += fsin(angle) * speed * d.speed * dt * 0.66f;
-      // Fade in and out at the ends of a life so no stroke starts or stops
-      // abruptly; the field should look like it has no edges in time.
-      float ends = std::min(1.0f, std::min((1 - d.life) * 7.0f, d.life * 3.2f));
-      float a = ends * (0.80f + breath * 0.80f);
-      stroke(d.px, d.py, d.x, d.y, ink[d.tint], a);
-      if (d.life > 0.82f) splat(d.x, d.y, glow, a * 0.7f);
+  void renderWeave(float dt) {
+    // Nothing fades. The pens draw over a fixed number of seconds and the
+    // sheet fills the way a plotter drawing does, then the page is changed.
+    weaveAt -= dt;
+    if (weaveAt <= 0) { clear(); placePens(); return; }
+    float speed = (26 + evolving[0] * 40) * (0.8f + breath * 0.5f);
+    for (unsigned i = 0; i < penCount; ++i) {
+      Pen& p = pens[i];
+      if (!p.down) continue;
+      // The field converges, so pens left running forever pile into the same
+      // few paths. Lifting one and setting it down elsewhere is what covers
+      // the sheet.
+      p.life -= dt;
+      if (p.life <= 0) {
+        p.life = range(3.0f, 9.0f);
+        p.x = range(6.0f, 234.0f); p.y = range(6.0f, 129.0f);
+        p.px = p.x; p.py = p.y;
+        continue;
+      }
+      float angle = flowAngle(p.x, p.y, phase);
+      p.px = p.x; p.py = p.y;
+      p.x += fcos(angle) * speed * p.speed * dt;
+      p.y += fsin(angle) * speed * p.speed * dt * 0.66f;
+      if (p.x < -4 || p.x > float(width) + 4 || p.y < -4 || p.y > float(height) + 4) {
+        // Off the sheet: the pen re-enters from the opposite edge rather than
+        // stopping, so the drawing keeps growing for its whole term.
+        p.x = p.x < 0 ? float(width) + 2 : (p.x > float(width) ? -2 : p.x);
+        p.y = p.y < 0 ? float(height) + 2 : (p.y > float(height) ? -2 : p.y);
+        p.px = p.x; p.py = p.y;
+        continue;
+      }
+      unsigned pixels = 1 + (i % 3 == 0 ? 1u : 0u);
+      band(p.px, p.py, p.x, p.y, pixels, color(ink[p.tint], step(i % 2)));
     }
   }
 
-  void renderInterference() {
+  void renderContour() {
+    // The field of an earlier version, quantised into flat areas instead of
+    // lit as glowing lines: a printed contour map rather than a light show.
     float t = phase;
     float ax = 120 + fcos(t * 0.015f) * (34 + evolving[0] * 62);
     float ay = 67 + fsin(t * 0.012f) * (18 + evolving[1] * 34);
@@ -227,43 +220,40 @@ class Painting {
     float kb = 0.0042f + evolving[5] * 0.0085f;
     float tilt = evolving[6];
     float px = fcos(tilt) * 0.0065f, py = fsin(tilt) * 0.0065f;
-    float bands = 6.5f + parameters[0] * 7.0f;
-    float sharp = 2.1f + breath * 2.2f;
-    float lift = 0.6f + breath * 0.7f;
+    unsigned levels = 5 + unsigned(parameters[0] * 4.0f);
+    float rise = breath * 0.06f;
+    // Levels alternate between an ink and a tint of that ink toward the
+    // ground. Stepping toward black instead, the way a dark-ground family
+    // would, turns every one of these palettes to mud.
+    uint16_t swatch[12];
+    for (unsigned i = 0; i < levels && i < 12; ++i) {
+      static const float tints[3] = {0.0f, 0.55f, 0.28f};
+      float mix = tints[(i / 3) % 3];
+      const Color& base = ink[i % 3];
+      swatch[i] = color({base.r + (groundColor.r - base.r) * mix,
+                         base.g + (groundColor.g - base.g) * mix,
+                         base.b + (groundColor.b - base.b) * mix});
+    }
     for (unsigned y = 0; y < height; ++y) {
       float fy = float(y) + 0.5f;
       float day = fy - ay, dby = fy - by;
-      uint16_t ground = rowGround[y];
-      int gr = int((ground >> 11) & 31), gg = int((ground >> 5) & 63), gb = int(ground & 31);
+      unsigned last = levels;
+      int runStart = 0;
       for (unsigned x = 0; x < width; ++x) {
         float fx = float(x) + 0.5f;
         float dax = fx - ax, dbx = fx - bx;
         float da = std::sqrt(dax * dax + day * day), db = std::sqrt(dbx * dbx + dby * dby);
         float v = fsin(da * ka - t * 0.062f) * 0.4f
                 + fsin(db * kb + t * 0.048f) * 0.36f
-                + fsin(fx * px + fy * py + t * 0.028f) * 0.24f;
-        float u = v * 0.5f + 0.5f;
-        // Contour lines: the triangle wave crosses zero at each band edge and
-        // the cube turns the crossing into a thin, soft line.
-        float f = u * bands;
-        float edge = 1 - std::abs(2 * (f - std::floor(f)) - 1);
-        float e2 = edge * edge, e4 = e2 * e2;
-        float strength = e4 * e4 * sharp * lift;
-        if (strength > 3.0f) strength = 3.0f;
-        // Colour follows the field, not the contour, so a single line changes
-        // ink as it crosses the frame.
-        float mix = u * 2.0f;
-        unsigned lo = unsigned(mix) % 3, hi = (lo + 1) % 3;
-        float blend = mix - float(unsigned(mix));
-        Color c = {ink[lo].r + (ink[hi].r - ink[lo].r) * blend,
-                   ink[lo].g + (ink[hi].g - ink[lo].g) * blend,
-                   ink[lo].b + (ink[hi].b - ink[lo].b) * blend};
-        float d = dither(int(x), int(y));
-        int r = gr + int(c.r * strength * (31.0f / 255.0f) + d);
-        int g = gg + int(c.g * strength * (63.0f / 255.0f) + d);
-        int b = gb + int(c.b * strength * (31.0f / 255.0f) + d);
-        frame[y * width + x] = uint16_t((std::min(r, 31) << 11) | (std::min(g, 63) << 5) | std::min(b, 31));
+                + fsin(fx * px + fy * py + t * 0.028f) * 0.24f + rise;
+        float u = std::max(0.0f, std::min(0.999f, v * 0.5f + 0.5f));
+        unsigned level = unsigned(u * float(levels));
+        if (level != last) {
+          if (last < levels) span(int(y), runStart, int(x) - 1, swatch[last]);
+          last = level; runStart = int(x);
+        }
       }
+      if (last < levels) span(int(y), runStart, int(width) - 1, swatch[last]);
     }
   }
 
@@ -279,7 +269,7 @@ class Painting {
     l.freq2 = range(0.016f, 0.038f);
     l.ph2 = unit();
     l.tone = unit();
-    l.glow = range(0.35f, 1.0f);
+    l.rim = unsigned(unit() * 3.0f) % 3;
     if (layerCount < layers.size()) ++layerCount;
     float cumulative = 0;
     for (unsigned i = 0; i < layerCount; ++i) { cumulative += layers[i].target; layers[i].target = cumulative; }
@@ -292,54 +282,37 @@ class Painting {
       l.base += (l.target - l.base) * std::min(1.0f, dt * 0.85f);
     }
     float sway = evolving[0] * 4 - 2;
+    float swell = breath * 2.5f;
     clear();
+    uint16_t body[14], rim[14];
+    for (unsigned i = 0; i < layerCount; ++i) {
+      // Each band is an ink, or that ink let down toward the ground. Mixing
+      // two inks instead was tried and turns a warm palette to mud: olive
+      // into plum is brown, and a screen of that is all it is.
+      static const float tints[3] = {0.0f, 0.30f, 0.56f};
+      const Color& base = ink[i % 3];
+      float mix = tints[unsigned(layers[i].tone * 3.0f) % 3];
+      body[i] = color({base.r + (groundColor.r - base.r) * mix,
+                       base.g + (groundColor.g - base.g) * mix,
+                       base.b + (groundColor.b - base.b) * mix});
+      rim[i] = color(ink[layers[i].rim], 1);
+    }
     for (unsigned x = 0; x < width; ++x) {
       float fx = float(x);
       float previous = -4;
       for (unsigned i = 0; i < layerCount; ++i) {
         const Layer& l = layers[i];
         float edge = l.base + l.amp1 * fsin(fx * l.freq1 + l.ph1 + phase * 0.012f)
-                            + l.amp2 * fsin(fx * l.freq2 + l.ph2 - phase * 0.021f) + sway * float(i) * 0.12f;
-        // Bands blend between two inks rather than taking one flat. A band
-        // is the largest area any family fills, and a pure primary across
-        // that much of the screen is the one place these inks look cheap.
-        float toneMix = l.tone * 3.0f;
-        unsigned mix3 = unsigned(toneMix) % 3, next = (mix3 + 1) % 3;
-        float toneBlend = toneMix - float(unsigned(toneMix));
-        const Color body = {ink[mix3].r + (ink[next].r - ink[mix3].r) * toneBlend,
-                            ink[mix3].g + (ink[next].g - ink[mix3].g) * toneBlend,
-                            ink[mix3].b + (ink[next].b - ink[mix3].b) * toneBlend};
+                            + l.amp2 * fsin(fx * l.freq2 + l.ph2 - phase * 0.021f)
+                            + sway * float(i) * 0.12f + swell * float(i % 3);
         int top = std::max(0, int(previous));
         int bottom = std::min(int(height) - 1, int(edge));
-        float thickness = std::max(1.0f, edge - previous);
-        for (int y = top; y <= bottom; ++y) {
-          float local = (float(y) - previous) / thickness;
-          // Each band is darkest where it was buried and lightest where it
-          // meets the next; the grain keeps the fill from looking printed.
-          float shade = 0.22f + 0.50f * local + 0.07f * grain(int(x), y);
-          shade *= 0.60f + 0.40f * l.tone;
-          float d = dither(int(x), y);
-          int r = int(body.r * shade * (31.0f / 255.0f) + d);
-          int g = int(body.g * shade * (63.0f / 255.0f) + d);
-          int b = int(body.b * shade * (31.0f / 255.0f) + d);
-          frame[unsigned(y) * width + x] = uint16_t((std::min(r, 31) << 11) | (std::min(g, 63) << 5) | std::min(b, 31));
-        }
-        splat(fx, edge, glow, l.glow * (0.55f + breath * 0.7f));
-        splat(fx, edge - 1.1f, ink[(mix3 + 1) % 3], l.glow * (0.30f + breath * 0.40f));
+        for (int y = top; y <= bottom; ++y) frame[unsigned(y) * width + x] = body[i];
+        plot(int(x), int(edge), rim[i]);
         previous = edge;
         if (edge > float(height)) break;
       }
-      // Basement. The settling stack is not guaranteed to reach the bottom
-      // of the frame, and an unfilled column below it reads as a hole.
-      const Color& deep = ink[unsigned(layers[layerCount - 1].tone * 3.0f) % 3];
-      for (int y = std::max(0, int(previous)); y < int(height); ++y) {
-        float shade = 0.11f + 0.05f * grain(int(x), y);
-        float d = dither(int(x), y);
-        int r = int(deep.r * shade * (31.0f / 255.0f) + d);
-        int g = int(deep.g * shade * (63.0f / 255.0f) + d);
-        int b = int(deep.b * shade * (31.0f / 255.0f) + d);
-        frame[unsigned(y) * width + x] = uint16_t((std::min(r, 31) << 11) | (std::min(g, 63) << 5) | std::min(b, 31));
-      }
+      for (int y = std::max(0, int(previous)); y < int(height); ++y) frame[unsigned(y) * width + x] = body[layerCount - 1];
     }
   }
 
@@ -349,84 +322,50 @@ class Painting {
     float base = range(1.4f, 3.1f);
     static const float ratios[6] = {1.0f, 2.0f, 3.0f, 1.5f, 2.5f, 4.0f};
     for (unsigned i = 0; i < 4; ++i) {
-      penFreq[i] = base * ratios[unsigned(unit() * 6.0f) % 6] * (1 + (unit() - 0.5f) * 0.012f);
-      penPhase[i] = unit();
-      penSize[i] = range(0.25f, 1.0f);
+      figureFreq[i] = base * ratios[unsigned(unit() * 6.0f) % 6] * (1 + (unit() - 0.5f) * 0.012f);
+      figurePhase[i] = unit();
+      figureSize[i] = range(0.25f, 1.0f);
     }
-    float sum01 = penSize[0] + penSize[1], sum23 = penSize[2] + penSize[3];
-    penSize[0] /= sum01; penSize[1] /= sum01; penSize[2] /= sum23; penSize[3] /= sum23;
-    penT = 0;
-    penEnvelope = 1;
-    // Per unit of pen time, not per second: the pen advances about a tenth of
-    // a unit a second, so this is a figure that has visibly drawn itself
-    // tighter by the time it is replaced.
-    penDecay = range(0.12f, 0.34f);
-    figureAt = range(17.0f, 27.0f);
+    float sum01 = figureSize[0] + figureSize[1], sum23 = figureSize[2] + figureSize[3];
+    figureSize[0] /= sum01; figureSize[1] /= sum01; figureSize[2] /= sum23; figureSize[3] /= sum23;
+    figureT = 0;
+    figureAt = range(20.0f, 30.0f);
   }
-  void renderHarmonograph(float dt) {
-    // The pen is deliberately slow. Run it at the speed the figure is
-    // traversed and it closes its whole loop several times a second, which
-    // fills the frame in a moment and then has nothing left to show. At this
-    // speed it stays a line that is still drawing itself, and the decay
-    // clears the oldest part of the stroke as the newest arrives.
-    settle(249);
+  void renderPendulum(float dt) {
+    // The pen is slow on purpose. Run it at the speed the figure is traversed
+    // and the whole loop closes several times a second, which fills the page
+    // in a moment and then has nothing left to show.
     figureAt -= dt;
-    if (figureAt <= 0) newFigure();
-    float span = dt * (0.10f + parameters[1] * 0.07f) * (1.0f + breath * 0.3f);
-    unsigned steps = 18 + unsigned(evolving[0] * 22);
-    float step = span / float(steps);
-    float rx = 74 + evolving[1] * 38, ry = 42 + evolving[2] * 20;
-    float decayPerStep = std::exp(-penDecay * step);
-    float lx = 0, ly = 0, env = penEnvelope;
+    if (figureAt <= 0) { clear(); newFigure(); }
+    float span_ = dt * (0.085f + parameters[1] * 0.06f) * (1.0f + breath * 0.35f);
+    unsigned steps = 12 + unsigned(evolving[0] * 16);
+    float stepT = span_ / float(steps);
+    float rx = 76 + evolving[1] * 36, ry = 44 + evolving[2] * 18;
+    float lx = 0, ly = 0;
     for (unsigned i = 0; i <= steps; ++i) {
-      float t = penT + step * float(i);
-      if (i) env *= decayPerStep;
-      // The envelope bottoms out rather than collapsing to a point, so a long
-      // figure ends up tighter than it started but still worth watching.
-      float amp = 0.34f + 0.66f * env;
-      float x = 120 + rx * amp * (penSize[0] * fsin(penFreq[0] * t + penPhase[0])
-                                + penSize[1] * fsin(penFreq[1] * t + penPhase[1]));
-      float y = 67 + ry * amp * (penSize[2] * fsin(penFreq[2] * t + penPhase[2])
-                               + penSize[3] * fsin(penFreq[3] * t + penPhase[3]));
+      float t = figureT + stepT * float(i);
+      float x = 120 + rx * (figureSize[0] * fsin(figureFreq[0] * t + figurePhase[0])
+                          + figureSize[1] * fsin(figureFreq[1] * t + figurePhase[1]));
+      float y = 67 + ry * (figureSize[2] * fsin(figureFreq[2] * t + figurePhase[2])
+                         + figureSize[3] * fsin(figureFreq[3] * t + figurePhase[3]));
       if (i == 0) { lx = x; ly = y; continue; }
-      // Colour travels along the stroke, so the trail reads as a gradient
-      // from the head back into what has already been drawn.
-      float hue = t * 0.85f;
-      float band = hue - std::floor(hue);
-      unsigned a = unsigned(band * 3.0f) % 3, b = (a + 1) % 3;
-      float blend = band * 3.0f - float(unsigned(band * 3.0f));
-      Color c = {ink[a].r + (ink[b].r - ink[a].r) * blend,
-                 ink[a].g + (ink[b].g - ink[a].g) * blend,
-                 ink[a].b + (ink[b].b - ink[a].b) * blend};
-      float weight = 0.46f + breath * 0.44f;
-      stroke(lx, ly, x, y, c, weight);
-      // A second pass across the stroke gives the ribbon some body; a single
-      // hairline at this size disappears into the ground.
-      float ox = y - ly, oy = lx - x;
-      float length = std::sqrt(ox * ox + oy * oy);
-      if (length > 0.001f) {
-        ox = ox / length * 0.8f; oy = oy / length * 0.8f;
-        stroke(lx + ox, ly + oy, x + ox, y + oy, c, weight * 0.45f);
-        stroke(lx - ox, ly - oy, x - ox, y - oy, c, weight * 0.45f);
-      }
+      // The ink changes by whole revolutions of the slowest pendulum, so the
+      // drawing is built from a few long passes in flat colour.
+      unsigned tint = unsigned(t * figureFreq[0]) % 3;
+      line(lx, ly, x, y, color(ink[tint], step(unsigned(t * figureFreq[0] * 0.5f) % 2)));
       lx = x; ly = y;
     }
-    splat(lx, ly, glow, 0.5f + breath * 0.5f);
-    penT += span;
-    penEnvelope = env;
+    figureT += span_;
   }
 
   void seedGrowth() {
     // Roots enter from one of the short sides and cross the long axis, the
-    // only direction with room enough for a structure to develop before it
-    // runs out of frame.
+    // only direction with room enough to develop before running out of frame.
     nodeCount = 0;
     bool fromLeft = unit() < 0.5f;
     unsigned roots = 2 + unsigned(unit() * 2.5f);
     for (unsigned i = 0; i < roots; ++i) {
       Node& n = nodes[nodeCount++];
-      // Inside the escape bound, not on it: a root placed at the very edge
-      // is killed on its first step and the family draws nothing at all.
       n.x = fromLeft ? range(4.0f, 13.0f) : range(227.0f, 236.0f);
       n.y = range(18.0f, 117.0f);
       float spread = (unit() - 0.5f) * 0.09f;
@@ -439,14 +378,14 @@ class Painting {
     liveNodes = nodeCount;
     growthHold = 0;
   }
-  void growStep() {
+  void growStep(float reachScale) {
     unsigned live = 0;
     unsigned existing = nodeCount;
     for (unsigned i = 0; i < existing; ++i) {
       Node& n = nodes[i];
       if (!n.alive) continue;
-      float reach = 1.5f + n.weight * 0.45f;
-      // The lean is per step and accumulates, so it stays small: a tenth of
+      float reach = (1.5f + n.weight * 0.45f) * reachScale;
+      // The lean is per step and accumulates, so it stays small: ten times
       // this and the branch spirals instead of reaching.
       float lean = flowAngle(n.x, n.y, phase) * 0.011f + (unit() - 0.5f) * 0.006f;
       float c = fcos(lean), s = fsin(lean);
@@ -454,30 +393,20 @@ class Painting {
       float length = std::sqrt(dx * dx + dy * dy);
       n.dx = dx / length; n.dy = dy / length;
       float nx = n.x + n.dx * reach, ny = n.y + n.dy * reach;
-      const Color& c1 = ink[n.depth % 3];
-      stroke(n.x, n.y, nx, ny, c1, 0.14f + n.weight * 0.115f);
-      if (n.weight > 1.3f) {
-        // Heavy branches are drawn twice, offset across their direction, so
-        // the structure tapers from a trunk to a hair.
-        float ox = -n.dy * n.weight * 0.26f, oy = n.dx * n.weight * 0.26f;
-        stroke(n.x + ox, n.y + oy, nx + ox, ny + oy, c1, 0.06f + n.weight * 0.055f);
-        stroke(n.x - ox, n.y - oy, nx - ox, ny - oy, c1, 0.06f + n.weight * 0.055f);
-      }
+      band(n.x, n.y, nx, ny, n.weight > 2.0f ? 3u : (n.weight > 1.1f ? 2u : 1u),
+           color(ink[n.depth % 3], step(n.weight > 1.1f ? 0 : 1)));
       n.x = nx; n.y = ny;
       n.weight *= 0.9955f;
       bool escaped = nx < 2 || nx > float(width) - 2 || ny < 2 || ny > float(height) - 2;
       if (escaped || n.weight < 0.30f || n.depth > 30) { n.alive = false; continue; }
       // A tip that runs into ground already taken stops there. Growth then
-      // competes for the empty parts of the frame instead of piling up into
-      // a white mass, and the structure ends up with its own negative space.
+      // competes for the empty parts of the frame instead of piling up, and
+      // the structure ends up with its own negative space.
       int ax = int(nx + n.dx * reach * 2), ay = int(ny + n.dy * reach * 2);
-      if (ax >= 0 && ax < int(width) && ay >= 0 && ay < int(height)) {
-        uint16_t here = frame[unsigned(ay) * width + unsigned(ax)];
-        unsigned lit = ((here >> 11) & 31) + (((here >> 5) & 63) >> 1) + (here & 31);
-        if (lit > 74) { n.alive = false; continue; }
-      }
-      // A split costs both children some weight, so the structure thins as
-      // it spreads and finishes on its own rather than filling the screen.
+      if (ax >= 0 && ax < int(width) && ay >= 0 && ay < int(height)
+          && frame[unsigned(ay) * width + unsigned(ax)] != ground) { n.alive = false; continue; }
+      // A split costs both children some weight, so the structure thins as it
+      // spreads and finishes on its own rather than filling the screen.
       float branchChance = (0.055f + evolving[1] * 0.080f) * std::min(1.0f, n.weight * 0.7f);
       if (unit() < branchChance && nodeCount < nodes.size()) {
         Node& child = nodes[nodeCount++];
@@ -501,85 +430,51 @@ class Painting {
     }
     liveNodes = live;
   }
-  void renderDelta(float dt) {
+  void renderGrowth(float dt) {
     if (liveNodes > 0) {
-      // One to three growth steps a frame keeps the structure arriving at a watchable
-      // pace on the device's twelve frames a second.
-      unsigned ticks = 1 + unsigned(evolving[0] * 1.6f);
-      for (unsigned i = 0; i < ticks; ++i) growStep();
+      // No mark at the moving tip: on a frame that is never cleared, a disc
+      // drawn at each tip every frame lays down a dotted trail beside every
+      // branch. The ends are capped once the branch stops instead.
+      growStep(0.72f + breath * 0.26f);
       for (unsigned i = 0; i < nodeCount; ++i)
-        if (nodes[i].alive) bloom(nodes[i].x, nodes[i].y, 1.3f + nodes[i].weight * 0.7f, glow, 0.13f + breath * 0.22f);
+        if (!nodes[i].alive) disc(nodes[i].x, nodes[i].y, 1.4f, color(ink[(nodes[i].depth + 1) % 3]));
     } else {
-      // Finished. The structure breathes with the music, dims, and a new one
-      // starts from somewhere else.
+      // Finished. The structure is held, its terminals marked, and then the
+      // page is changed.
       growthHold += dt;
-      settle(growthHold > 5.0f ? 230 : 249);
-      // Terminals keep a small light on them, so the finished structure
-      // pulses with the music instead of standing still. The alpha has to
-      // stay under the decay or the same pixels burn out to white.
-      for (unsigned i = 0; i < nodeCount; i += 2) {
-        const Node& n = nodes[i];
-        bloom(n.x, n.y, 1.4f, ink[n.depth % 3], 0.02f + breath * 0.10f);
-      }
-      // A structure that died young is not worth holding on screen for the
-      // full pause.
-      if (growthHold > (nodeCount < 10 ? 1.5f : 8.5f)) { clear(); seedGrowth(); }
+      for (unsigned i = 0; i < nodeCount; i += 2)
+        disc(nodes[i].x, nodes[i].y, 1.4f + breath * 1.6f, color(ink[(nodes[i].depth + 2) % 3]));
+      if (growthHold > (nodeCount < 10 ? 1.5f : 4.0f)) { clear(); seedGrowth(); }
     }
   }
 
-  void renderVeil() {
-    float t = phase;
-    constexpr unsigned curtains = 4;
-    float centre[curtains], weightScale[curtains], hueMix[curtains];
-    for (unsigned k = 0; k < curtains; ++k) {
-      float fk = float(k);
-      centre[k] = (fk + 0.5f) * (float(width) / float(curtains)) + (evolving[k] - 0.5f) * 76;
-      weightScale[k] = 9 + evolving[(k + 3) % 8] * 17;
-      hueMix[k] = fk / float(curtains - 1);
+  void placeBodies() {
+    bodyCount = 6 + unsigned(unit() * 3.5f);
+    for (unsigned i = 0; i < bodyCount; ++i) {
+      Body& b = bodies[i];
+      b.phase = unit();
+      b.rateX = range(0.010f, 0.032f) * (unit() < 0.5f ? -1.0f : 1.0f);
+      b.rateY = range(0.008f, 0.028f) * (unit() < 0.5f ? -1.0f : 1.0f);
+      b.spanX = range(52.0f, 104.0f);
+      b.spanY = range(22.0f, 52.0f);
+      b.radius = range(9.0f, 40.0f);
+      b.thickness = range(3.0f, 9.0f);
+      b.tint = i % 3;
+      b.hollow = unit() < 0.45f;
     }
-    float shimmerRate = 0.05f + parameters[2] * 0.09f;
-    float lift = 3.2f + breath * 2.4f;
-    for (unsigned y = 0; y < height; ++y) {
-      float fy = float(y);
-      uint16_t ground = rowGround[y];
-      int gr = int((ground >> 11) & 31), gg = int((ground >> 5) & 63), gb = int(ground & 31);
-      // Curtains hang from the top and brighten toward their feet, then cut
-      // off softly, the way an aurora sits above a horizon.
-      float foot = 1 - std::abs(fy / float(height) - 0.72f) * 1.55f;
-      foot = std::max(0.0f, foot);
-      float vertical = foot * foot * (0.35f + 0.65f * (fy / float(height)));
-      float cx[curtains], amp[curtains];
-      for (unsigned k = 0; k < curtains; ++k) {
-        cx[k] = centre[k] + fsin(fy * 0.0075f + t * (0.021f + 0.008f * float(k)) + float(k) * 0.37f) * (18 + evolving[6] * 34)
-                          + fsin(fy * 0.021f - t * 0.033f) * 5.0f;
-        amp[k] = vertical * lift * (0.55f + 0.45f * fsin(t * 0.045f + float(k) * 0.41f));
-      }
-      for (unsigned x = 0; x < width; ++x) {
-        float fx = float(x) + 0.5f;
-        float r = 0, g = 0, b = 0;
-        for (unsigned k = 0; k < curtains; ++k) {
-          float offset = fx - cx[k];
-          float d = offset / weightScale[k];
-          float intensity = amp[k] / (1 + d * d * 3.2f);
-          if (intensity < 0.006f) continue;
-          // Fine vertical rays. The striation is measured across the curtain
-          // rather than across the screen, so it travels with the sheet
-          // instead of standing on the frame as a fixed comb.
-          float rays = 0.72f + 0.28f * fsin(offset * (0.085f + 0.03f * float(k)) + t * shimmerRate + fy * 0.006f);
-          intensity *= rays;
-          float m = hueMix[k];
-          unsigned a = unsigned(m * 2.0f) % 3, c2 = (a + 1) % 3;
-          float blend = m * 2.0f - float(unsigned(m * 2.0f));
-          r += (ink[a].r + (ink[c2].r - ink[a].r) * blend) * intensity;
-          g += (ink[a].g + (ink[c2].g - ink[a].g) * blend) * intensity;
-          b += (ink[a].b + (ink[c2].b - ink[a].b) * blend) * intensity;
-        }
-        float d = dither(int(x), int(y));
-        int ri = gr + int(r * (31.0f / 255.0f) + d);
-        int gi = gg + int(g * (63.0f / 255.0f) + d);
-        int bi = gb + int(b * (31.0f / 255.0f) + d);
-        frame[y * width + x] = uint16_t((std::min(ri, 31) << 11) | (std::min(gi, 63) << 5) | std::min(bi, 31));
-      }
+  }
+  void renderEclipse() {
+    // Flat discs and punched rings, drifting slowly past each other. The
+    // composition is whatever their overlaps happen to make; the later a body
+    // is drawn, the more of it stays visible.
+    clear();
+    for (unsigned i = 0; i < bodyCount; ++i) {
+      const Body& b = bodies[i];
+      float x = 120 + fsin(phase * b.rateX + b.phase) * b.spanX;
+      float y = 67 + fsin(phase * b.rateY + b.phase * 1.7f) * b.spanY;
+      float r = b.radius * (0.92f + evolving[i % 8] * 0.2f) + breath * 5.0f;
+      uint16_t c = color(ink[b.tint], step(i % 3 == 2 ? 1 : 0));
+      if (b.hollow) ring(x, y, r, b.thickness, c); else disc(x, y, r, c);
     }
   }
 
@@ -592,42 +487,42 @@ class Painting {
 
   void regenerate() {
     kind = count ? (kind + 1 + random() % (familyCount - 1)) % familyCount : random() % familyCount;
-    palette = count ? (palette + 1 + random() % 3) % 4 : random() % 4;
+    palette = count ? (palette + 1 + random() % 5) % 6 : random() % 6;
     ++count;
     phase = unit() * 40.0f;
     breath = 0;
     for (auto& p : parameters) p = unit();
     pace = 0.75f + parameters[7] * 0.6f;
-    // The same four palettes as Rill Drums, carried over unchanged. Their
-    // comment there records why: on-device swatch tests found that nudging
-    // red and green toward other hues to "correct" them looked worse, and
-    // that pure red, pure green, this blue and this purple are the ones that
-    // read true on the actual panel, with pink and cyan in the same clean
-    // territory. Nothing tuned on a monitor beat them on the device.
-    static const Color palettes[4][3] = {
-      {{255,   0,   0}, {  0, 255,   0}, {  0,  90, 255}},
-      {{160,   0, 255}, {255,  20, 147}, {  0,  90, 255}},
-      {{255,   0,   0}, {160,   0, 255}, {  0, 220, 255}},
-      {{  0, 255,   0}, {  0,  90, 255}, {255,  20, 147}}};
-    for (unsigned i = 0; i < 3; ++i) ink[i] = palettes[palette][i];
-    // Hot white cores, used only where a mark needs a highlight: a tip, a
-    // pen head, the lit edge of a band.
-    glow = {255, 255, 255};
-    // One ground colour for the whole screen, tinted toward the palette and
-    // held within a step of black. A gradient was tried first and could not
-    // survive five bits of red: it arrived on the display as two or three
-    // horizontal bands, which is worse than no gradient at all. Depth is the
-    // drawing's job here, not the ground's.
-    // Rill Drums' ground, so the two instruments sit on the same dark.
-    Color base = {12, 14, 24};
-    uint16_t ground = uint16_t((std::min(int(base.r * (31.0f / 255.0f) + 0.5f), 31) << 11)
-                             | (std::min(int(base.g * (63.0f / 255.0f) + 0.5f), 63) << 5)
-                             | std::min(int(base.b * (31.0f / 255.0f) + 0.5f), 31));
-    rowGround.fill(ground);
+    // Daylight palettes: a coloured ground and three flat inks that sit on
+    // it, in the register of a faded photograph rather than of emitted light.
+    // The ground is the important part. Saturated ink on black is what made
+    // every earlier attempt read as neon however the hues were chosen, and
+    // against a warm ground the same drawing reads as printed instead. It
+    // also suits the panel, which loses shadow detail but has no trouble
+    // holding a light field.
+    //
+    // First entry is the ground, then the three inks.
+    static const Color palettes[6][4] = {
+      // Shōwa afternoon: faded cream, dusty red, sun-bleached teal, mustard.
+      {{232, 220, 192}, {196,  85,  63}, { 78, 138, 134}, {211, 160,  60}},
+      // Rainy Ginza: wet pavement grey, slate, brick, bone.
+      {{201, 210, 206}, { 62,  90,  99}, {179,  91,  74}, {240, 230, 210}},
+      // Park in spring: soft sky, cherry red, leaf, cream.
+      {{143, 203, 232}, {226,  88,  75}, { 95, 163,  82}, {251, 240, 216}},
+      // Village morning: bone, sage, terracotta, slate blue.
+      {{234, 227, 210}, {126, 154, 107}, {192, 107,  78}, {110, 132, 148}},
+      // Late sun: warm peach, persimmon, deep olive, plum brown.
+      {{240, 201, 160}, {212,  91,  60}, {107, 122,  58}, {122,  74,  70}},
+      // Night market: deep indigo, lantern amber, faded rose, pale jade.
+      {{ 44,  58,  74}, {232, 163,  61}, {201, 106, 106}, {143, 185, 168}},
+    };
+    groundColor = palettes[palette][0];
+    for (unsigned i = 0; i < 3; ++i) ink[i] = palettes[palette][i + 1];
+    ground = color(groundColor);
     evolutionRng = (rng ^ 0x85ebca6bu) | 1u;
     evolutionAt = 0;
     for (unsigned i = 0; i < goals.size(); ++i) evolving[i] = goals[i] = evolveUnit();
-    for (unsigned i = 0; i < drops.size(); ++i) respawn(drops[i], i);
+    placePens();
     layerCount = 0;
     settleAt = 0;
     for (unsigned i = 0; i < 13; ++i) pushLayer();
@@ -635,6 +530,7 @@ class Painting {
     newFigure();
     growthHold = 0;
     seedGrowth();
+    placeBodies();
     clear();
   }
 
@@ -644,18 +540,17 @@ class Painting {
 
   void render(float seconds, float audio) {
     seconds = std::max(0.0f, std::min(0.1f, seconds));
-    ++tick;
     phase += seconds * pace;
     if (phase > 100000.0f) phase -= 100000.0f;
     breath += (std::max(0.0f, std::min(1.0f, audio)) - breath) * std::min(1.0f, seconds * 5);
     evolve(seconds);
     switch (kind) {
-      case Current: renderCurrent(seconds); break;
-      case Interference: renderInterference(); break;
+      case Weave: renderWeave(seconds); break;
+      case Contour: renderContour(); break;
       case Strata: renderStrata(seconds); break;
-      case Harmonograph: renderHarmonograph(seconds); break;
-      case Delta: renderDelta(seconds); break;
-      default: renderVeil(); break;
+      case Pendulum: renderPendulum(seconds); break;
+      case Growth: renderGrowth(seconds); break;
+      default: renderEclipse(); break;
     }
   }
 };

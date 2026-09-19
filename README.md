@@ -28,7 +28,7 @@ The data view shows the voice, key, mode, generation number, tempo, delay rhythm
 - **Seven timbres:** Bongo, Bars, Wood, Bells, Wire, Halo and Synth. These combine resonant modes, plucked tones, FM and filtered oscillators; they are interpretations, not exact hardware or acoustic-instrument emulations.
 - **Generated phrases:** six contour tendencies guide newly composed melodies, variable phrase spans, interval preferences and rhythms. Ideas develop through changed endings, rhythmic rephrasing, recalled fragments and new descendants. Sparse answering parts follow their own timing. Twelve tonics, three modes, four harmonic behaviors and gradual changes in activity give each piece its own phrasing.
 - **Evolving echoes:** two tempo-related taps, smooth or stepped feedback, occasional stronger repeat passages and intermittent smearing.
-- **Six visual families:** a flowing current, wave interference, settling strata, a drawing pendulum, branching growth and light curtains. Each shake selects a different family. Every family is drawn as light on a dark ground and drifts through slow parameter changes, so a family returned to minutes later is not the arrangement it was. Growth and the pendulum run a life of their own: they arrive, hold, dissolve and begin again.
+- **Six visual families:** a woven drawing, a contour field, settling strata, a drawing pendulum, branching growth and drifting discs. Each shake selects a different family. All six are drawn flat, in opaque shapes with hard edges on a coloured ground, and drift through slow parameter changes, so a family returned to minutes later is not the arrangement it was. The pendulum and growth run a life of their own: they arrive, fill the page, and the page is changed.
 
 New music fades between generations. Generations are not saved across restarts. Device-to-device ensemble sync is a [design proposal](SYNC-DESIGN.md), not an available feature.
 
@@ -38,14 +38,16 @@ Shake to change the visual; tap the front button to generate new music and a new
 
 <img src="docs/images/visuals-study.png" alt="Contact sheet of the six visual families" width="720">
 
-*Top row: current, interference, strata. Bottom row: pendulum, growth, curtains. These are frames from the renderer itself, at the same 240x135 the device draws, taken at a settled moment for each family. They are not photographs of the screen; device photos are still to be taken.*
+*Top row: weave, contour, strata. Bottom row: pendulum, growth, eclipse. These are frames from the renderer itself, at the same 240x135 the device draws, taken at a settled moment for each family. They are not photographs of the screen; device photos are still to be taken.*
 
-- **Current** — hundreds of marks drift through a slowly turning flow field, each leaving a fading trail, so the screen is a long exposure of where the field has been.
-- **Interference** — two travelling wave sources and a drifting plane wave sum into a field, and the contour lines of that field are drawn as fine bright threads.
-- **Strata** — bands settle in from the top every few seconds and push the older ones down and out of frame, each with its own lit edge.
-- **Pendulum** — a damped harmonograph traces a figure, precesses as it decays, comes to rest, and then starts a different one.
-- **Growth** — branches cross the screen from one side, splitting as they go and stopping where they meet ground already taken, then hold, dissolve and begin again.
-- **Curtains** — vertical sheets of light hang and drift, striated across their own width.
+- **Weave** — a dozen pens travel a slowly turning flow field, drawing hard lines that are never cleared, until the sheet is full and a new one is started.
+- **Contour** — two travelling wave sources and a drifting plane wave sum into a field, and the field is quantised into flat areas of ink and tint, the way a printed contour map is.
+- **Strata** — bands settle in from the top every few seconds and push the older ones down and out of frame, each with a line along its edge.
+- **Pendulum** — a harmonograph traces a figure slowly enough to follow, in long passes of flat colour, then the page is changed and a different figure begins.
+- **Growth** — branches cross the page from one side, splitting as they go and stopping where they meet ground already taken.
+- **Eclipse** — flat discs and punched rings drift past each other, and the composition is whatever their overlaps happen to make.
+
+Everything is opaque shapes with hard edges: filled spans, discs, rings punched back to the ground, single-pixel lines. There is no additive blending, dithering or soft falloff anywhere in the renderer. The palettes are daylight ones, a coloured ground with three inks that sit on it, in the register of a faded photograph rather than of emitted light.
 
 ## Hardware
 

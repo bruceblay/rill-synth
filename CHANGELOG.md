@@ -2,15 +2,11 @@
 
 ## Unreleased — visual study
 
-- Replaced the six visual families with a new set drawn as light on a dark ground: current, interference, strata, pendulum, growth and curtains.
-- Added a shared drawing material for them: subpixel additive splats, hash-noise dithering that moves every frame, and a decay that returns the frame to ground without leaving residue.
+- Replaced the six visual families. Weave, contour, strata, pendulum, growth and eclipse, all drawn flat: opaque shapes with hard edges, no additive blending, no dithering, no soft falloff. This is Rill Drums' drawing language.
+- Replaced the palettes with six daylight ones, each a coloured ground and three inks that sit on it. Levels and bands are an ink or that ink let down toward the ground, never stepped toward black.
 - Archived the original six families in `src/LightClassic.h`, unused by the firmware; the retained-behavior test now holds that archive to the historical fixture.
-- Slowed the interference field to about a third of its first speed.
-- Reworked the pendulum: the pen now moves slowly enough to be followed, its envelope bottoms out instead of collapsing, and a new figure starts every twenty seconds or so, so it never settles into a filled shape.
-- Took Rill Drums' four palettes and ground unchanged, so the two instruments share a colour. Strata blends its bands between two inks rather than filling a large area with one flat primary.
-- Raised the display brightness from 55 to 100 and lifted the dimmer families, after finding that mid-tones which read on a monitor disappear on the panel.
-- Fixed growth roots spawning outside the escape bound, where they died on their first step and left the screen blank; raised its crowding threshold to match the brighter strokes.
-- Not yet seen on hardware. The frame times are host measurements.
+- Raised the display brightness from 55 to 100.
+- Not yet judged on hardware beyond a first look.
 
 ## 0.2.0 — 2026-09-12
 
