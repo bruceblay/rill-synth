@@ -63,6 +63,17 @@ class Engine {
   float brightness = 0.48f, strike = 0.008f, overtoneLife = 0.4f;
   uint8_t pendingOnset = 0;
   float pendingWeight = 0;
+  // A flurry: a melody note occasionally breaks into a few very fast
+  // repeats. Borrowed from Rill Drums' ratchets, where splitting one step
+  // into rapid hits was what let the pattern change note length rather than
+  // only add and remove notes. On a pitched instrument the same device reads
+  // as a roll or, when it alternates with the neighbouring scale tone, as a
+  // trill.
+  uint64_t flurryAt = 0;
+  uint32_t flurrySpacing = 0;
+  unsigned flurryLeft = 0;
+  int flurryPitch = 0, flurryNeighbour = 0;
+  float flurryGain = 0, flurrySeconds = 0, flurryColor = 0, flurryChance = 0;
   float voiceGain = 1, fmDepth = 0;
   uint32_t transition = 0;
   static constexpr uint32_t fadeFrames = rate / 3;
@@ -175,6 +186,10 @@ class Engine {
     overtoneLife = life[family] * (0.8f + unit() * 0.4f);
     voiceGain = gains[family];
     fmDepth = family == 5 ? 0.35f + unit() * 0.45f : 0;
+    // Only some generations flurry at all. Every piece doing it would make an
+    // ornament into a tic.
+    flurryChance = (random() % 2 == 0) ? 0.06f + unit() * 0.09f : 0.0f;
+    flurryLeft = 0;
     delayMode = random() % 4;
     static const float taps[4][2] = {{1.5f,2.5f},{4.0f/3,8.0f/3},{1,3},{0.75f,2.25f}};
     delaySamples = unsigned(std::lround(tickSamples * taps[delayMode][0]));
@@ -330,7 +345,43 @@ class Engine {
       note(previousSupport,2.1f,0.025f,2.075f,0.055f*phraseLevel*touchVariation(),brightness*0.65f);
     }
   }
+  // The next repeat of a flurry, if one is due. Each is quieter than the one
+  // before, so it reads as something played rather than as a machine firing.
+  void serviceFlurry() {
+    if(!flurryLeft || clock<flurryAt) return;
+    int pitch=(flurryLeft%2 && flurryNeighbour!=flurryPitch) ? flurryNeighbour : flurryPitch;
+    note(pitch,flurrySeconds,strike*0.6f,flurrySeconds-strike*0.6f,flurryGain,flurryColor);
+    flurryGain*=0.76f;
+    flurryAt+=flurrySpacing;
+    --flurryLeft;
+  }
+  // The scale tone either side of a pitch, so a trill stays in key.
+  int neighbourTone(int midi,int direction) const {
+    int candidate=midi+direction;
+    if(!inKey(candidate)) candidate+=direction;
+    return inKey(candidate) ? candidate : midi;
+  }
+  void scheduleFlurry(int pitch,float duration,float gain,float color,unsigned room) {
+    // A thirty-second at this tempo, or a sextuplet against it now and then.
+    uint32_t spacing=(performanceUnit()<0.25f) ? tickSamples/6 : tickSamples/4;
+    if(spacing<64) return;
+    // Never longer than the space before the next note: a flurry that runs
+    // past it stops being an ornament and becomes the phrase.
+    unsigned most=unsigned((uint64_t(room)*9/10)/spacing);
+    unsigned repeats=std::min(most,2u+unsigned(scoreRandom()%3));
+    if(repeats<2) return;
+    flurryPitch=pitch;
+    flurryNeighbour=(performanceUnit()<0.45f) ? neighbourTone(pitch,performanceUnit()<0.5f?1:-1) : pitch;
+    flurrySpacing=spacing;
+    flurryLeft=repeats;
+    flurryAt=clock+spacing;
+    flurryGain=gain*0.72f;
+    flurrySeconds=std::max(0.10f,std::min(0.26f,duration*0.45f));
+    flurryColor=color;
+  }
+
   void score() {
+    serviceFlurry();
     // Answering parts have their own recurrence, with a gap after lead attacks.
     if(clock>=nextAnswer) {
       if(clock-lastLeadAt<uint64_t(tickSamples/2)) {
@@ -371,7 +422,11 @@ class Engine {
                      *(0.90f+0.20f*performanceUnit());
       if(activity==2) duration*=0.8f;
       duration=std::max(0.16f,std::min(3.8f,duration));
-      note(pitch,duration,strike,duration-strike,0.15f*accents[phraseStep]*expression*touchVariation(),brightness);
+      float gain=0.15f*accents[phraseStep]*expression*touchVariation();
+      note(pitch,duration,strike,duration-strike,gain,brightness);
+      if(flurryChance>0 && performanceUnit()<flurryChance)
+        scheduleFlurry(pitch,duration,gain,brightness,
+                       unsigned(uint64_t(tickSamples/2)*rhythm[phraseStep]));
       lastLead=pitch;lastLeadAt=clock;
     }
     nextTick+=uint64_t(tickSamples/2)*rhythm[phraseStep];
@@ -387,6 +442,9 @@ class Engine {
     return 60 + int(tonic) + scales[mode][degree % 7] + 12 * int(degree / 7 + octave);
   }
   void clearSound() {
+    // A flurry left pending across a change would fire into the next piece,
+    // in the key it has just left.
+    flurryLeft = 0;
     for (auto& v : voices) v = Voice{};
     for (auto& line : comb) line.fill(0);
     for (auto& value : damping) value = 0;
