@@ -33,11 +33,11 @@ class Painting {
   static constexpr unsigned width = 240, height = 135;
   static constexpr unsigned familyCount = 8;
   enum Family : unsigned { Contour = 0, Pendulum, Growth, Eclipse, Truchet, Tiles, Ridges, Reef };
-  // Truchet is held out of the rotation rather than deleted: it is still
-  // built, still tested, and putting it back is one line here.
-  static constexpr unsigned rotationCount = 7;
+  // Truchet and Ridges are held out of the rotation rather than deleted: both
+  // are still built, still tested, and putting either back is one line here.
+  static constexpr unsigned rotationCount = 6;
   static unsigned familyAt(unsigned i) {
-    static const unsigned rotation[rotationCount] = {Contour, Pendulum, Growth, Eclipse, Tiles, Ridges, Reef};
+    static const unsigned rotation[rotationCount] = {Contour, Pendulum, Growth, Eclipse, Tiles, Reef};
     return rotation[i % rotationCount];
   }
 

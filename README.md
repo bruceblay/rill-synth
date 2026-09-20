@@ -34,7 +34,7 @@ The data view shows the voice, key, mode, generation number, tempo, delay rhythm
 - **Seven timbres:** Bongo, Bars, Wood, Bells, Wire, Halo and Synth. These combine resonant modes, plucked tones, FM and filtered oscillators; they are interpretations, not exact hardware or acoustic-instrument emulations.
 - **Generated phrases:** six contour tendencies guide newly composed melodies, variable phrase spans, interval preferences and rhythms. Ideas develop through changed endings, rhythmic rephrasing, recalled fragments and new descendants. Sparse answering parts follow their own timing. Twelve tonics, three modes, four harmonic behaviors and gradual changes in activity give each piece its own phrasing.
 - **Evolving echoes:** two tempo-related taps, smooth or stepped feedback, occasional stronger repeat passages and intermittent smearing.
-- **Seven visual families:** a contour field, a drawing pendulum, branching growth, drifting discs, a grid that holds the last few seconds of the music, fingerprint ridges and a reaction-diffusion reef. Each shake selects a different family. All six are drawn flat, in opaque shapes with hard edges on a coloured ground, and drift through slow parameter changes, so a family returned to minutes later is not the arrangement it was. The pendulum and growth run a life of their own: they arrive, fill the page, and the page is changed.
+- **Six visual families:** a contour field, a drawing pendulum, branching growth, drifting discs, a grid lit note by note, and a reaction-diffusion reef. Each shake selects a different family. All six are drawn flat, in opaque shapes with hard edges on a coloured ground, and drift through slow parameter changes, so a family returned to minutes later is not the arrangement it was. The pendulum and growth run a life of their own: they arrive, fill the page, and the page is changed.
 
 New music fades between generations. Generations are not saved across restarts. Device-to-device ensemble sync is a [design proposal](SYNC-DESIGN.md), not an available feature.
 
@@ -44,14 +44,13 @@ Shake to change the visual; tap the front button to generate new music and a new
 
 <img src="docs/images/visuals-study.png" alt="Contact sheet of the six visual families" width="720">
 
-*Top row: contour, pendulum, growth, eclipse. Bottom row: tiles, ridges, reef. These are frames from the renderer itself, at the same 240x135 the device draws, taken at a settled moment for each family. They are not photographs of the screen; device photos are still to be taken.*
+*Top row: contour, pendulum, growth, eclipse. Bottom row: tiles, reef. These are frames from the renderer itself, at the same 240x135 the device draws, taken at a settled moment for each family. They are not photographs of the screen; device photos are still to be taken.*
 
 - **Contour** — two travelling wave sources and a drifting plane wave sum into a field, and the field is quantised into flat areas of ink and tint, the way a printed contour map is.
 - **Pendulum** — a harmonograph traces a figure slowly enough to follow, in long passes of flat colour, then the page is changed and a different figure begins.
 - **Growth** — branches cross the page from one side, splitting as they go and stopping where they meet ground already taken.
 - **Eclipse** — flat discs and punched rings drift past each other, and the composition is whatever their overlaps happen to make.
-- **Tiles** — a grid of flat squares holding the last five seconds of the music, a column every quarter second, travelling across the grid.
-- **Ridges** — ridges bent around three cores, the way a fingerprint is: concentric and swirling close in, flowing in the field between them.
+- **Tiles** — a grid of flat squares where each note lights its own column, fading back so the grid settles when the music stops.
 - **Reef** — a Gray-Scott reaction, the chemistry behind both brain coral and fingerprints, run at half resolution and read at full so its edges stay organic.
 
 Everything is opaque shapes with hard edges: filled spans, discs, rings punched back to the ground, single-pixel lines. There is no additive blending, dithering or soft falloff anywhere in the renderer. The palettes are daylight ones, a coloured ground with three inks that sit on it, in the register of a faded photograph rather than of emitted light.
@@ -62,9 +61,9 @@ does differs by family, because a drawing and a field cannot take an event the
 same way. The pendulum leaves a bead on its line where the pen was when the
 note sounded. A note splits a living tip in growth, lights a column in tiles,
 pulses the body its pitch points at in eclipse, and seeds a colony in the
-reef. Contour and ridges are resolved per pixel and cannot afford to draw
-anything extra, so a note pushes the whole field instead: every contour walks
-outward at once, and the fingerprint's ridge spacing opens.
+reef. Contour is resolved per pixel and cannot afford to draw anything
+extra, so a note pushes the whole field instead and every contour walks
+outward at once.
 
 ## Hardware
 
