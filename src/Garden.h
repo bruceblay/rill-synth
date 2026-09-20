@@ -61,6 +61,8 @@ class Engine {
   unsigned family = 0, tonic = 2, mode = 0;
   int initialFamily = -1;
   float brightness = 0.48f, strike = 0.008f, overtoneLife = 0.4f;
+  uint8_t pendingOnset = 0;
+  float pendingWeight = 0;
   float voiceGain = 1, fmDepth = 0;
   uint32_t transition = 0;
   static constexpr uint32_t fadeFrames = rate / 3;
@@ -99,6 +101,11 @@ class Engine {
       v.attack = uint32_t(attack * rate);
       v.release = std::min(uint32_t(release * rate), v.duration - v.attack);
       v.gain = gain * voiceGain; v.color = color;
+      // Report the note, so the visuals can be played rather than driven by
+      // the output level, which cannot tell one note from two or say anything
+      // about pitch.
+      pendingOnset = uint8_t(std::max(0, std::min(127, midi)));
+      pendingWeight = std::min(1.0f, gain * 6.0f);
       v.family = family; v.third = color * 0.28f;
       v.transientDecay = std::exp(-1.0f / (rate * overtoneLife));
       v.fm = fmDepth;
@@ -412,6 +419,14 @@ class Engine {
     return (generation << 18) | (delayMode << 16) | (family << 13) | (tonic << 9) | (mode << 7) | tempo;
   }
   unsigned variation() const { return generation; }
+  // The pitch of the last note, or 0 if none since the previous call. Read
+  // once a frame from the display side.
+  uint8_t drainOnset() { uint8_t note = pendingOnset; pendingOnset = 0; return note; }
+  float onsetWeight() const { return pendingWeight; }
+  // The register the melody is folded into, which is fixed here rather than
+  // per instrument as in Rill Mallet.
+  static constexpr int melodyBottom() { return 60; }
+  static constexpr int melodyTop() { return 91; }
   unsigned bpm() const { return tempo; }
   unsigned delayType() const { return delayMode; }
   unsigned delayFrames() const { return delaySamples; }

@@ -39,5 +39,17 @@ int main() {
     auto before=hash(*a); a->regenerate(); a->render(0,0);
     assert(hash(*a)!=before);
   }
-  std::cout<<"Visual transitions, deterministic seeds, audio response and frame bounds passed\n";
+  // Every family answers notes, not just the level: the same level with a
+  // different phrase has to look different.
+  for(unsigned slot=0;slot<light::Painting::rotationCount;++slot) {
+    unsigned family=light::Painting::familyAt(slot);
+    a->seed(17); b->seed(17);
+    while(a->visualFamily()!=family) { a->regenerate(); b->regenerate(); }
+    for(unsigned i=0;i<90;++i) {
+      a->render(.083f,.4f,i%6==0?uint8_t(64+(i%17)):uint8_t(0),.7f);
+      b->render(.083f,.4f,i%6==0?uint8_t(86-(i%17)):uint8_t(0),.7f);
+    }
+    assert(hash(*a)!=hash(*b));
+  }
+  std::cout<<"Visual transitions, deterministic seeds, note and level response and frame bounds passed\n";
 }

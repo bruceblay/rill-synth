@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Bruce Blay
 // SPDX-License-Identifier: GPL-3.0-or-later
+#include "../src/Garden.h"
 #include "../src/Light.h"
+#include <array>
 #include <array>
 #include <cstdlib>
 #include <fstream>
@@ -23,7 +25,20 @@ int main(int argc,char** argv) {
     unsigned family=light::Painting::familyAt(slot);
     auto painting=std::unique_ptr<light::Painting>(new light::Painting(17));
     while(painting->visualFamily()!=family) painting->regenerate();
-    for(unsigned frame=0;frame<settled[family];++frame) painting->render(1.0f/12,.35f);
+    // Played by the engine rather than fed a constant level: these families
+    // answer notes now, and a still of one that never heard a note is not a
+    // picture of what the device shows.
+    auto engine=std::unique_ptr<garden::Engine>(new garden::Engine(17));
+    std::array<int16_t,512> block{};
+    for(unsigned frame=0;frame<settled[family];++frame) {
+      uint8_t note=0; float weight=.6f, energy=0;
+      for(unsigned b=0;b<garden::rate/12/512;++b) {
+        engine->render(block.data(),block.size());
+        for(auto s:block) energy+=float(std::abs(int(s)));
+        if(uint8_t struck=engine->drainOnset()) { note=struck; weight=engine->onsetWeight(); }
+      }
+      painting->render(1.0f/12,energy/(512*5*8000.0f),note,weight);
+    }
     for(unsigned y=0;y<135;++y) for(unsigned x=0;x<240;++x)
       (*pixels)[(y+(slot/4)*135)*width+x+(slot%4)*240]=painting->pixels()[y*240+x];
   }

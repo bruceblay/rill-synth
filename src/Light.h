@@ -6,7 +6,15 @@
 #include <cmath>
 #include <cstdint>
 
-// Six generative visual families, drawn flat.
+// Seven generative visual families, drawn flat and played by the score.
+//
+// Every family answers individual notes as well as the output level. A level
+// meter cannot tell one note from two and says nothing about pitch, and the
+// families that only had a level to work with looked like they were running
+// beside the music rather than with it. What a note does differs by family,
+// because a field and a drawing cannot take an event the same way: the ones
+// that draw marks put something down, and the ones that resolve a whole
+// field each frame are pushed by it instead.
 //
 // Everything here is an opaque shape with a hard edge: filled spans, discs,
 // rings punched back to the ground, single-pixel lines, flat bands. There is
@@ -41,7 +49,7 @@ class Painting {
   // Growth: a branch tip. Dead tips stay in the array as terminals.
   struct Node { float x, y, dx, dy, weight; uint8_t depth; bool alive; };
   // Eclipse: a flat disc or a punched ring, drifting on its own two-rate path.
-  struct Body { float phase, rateX, rateY, spanX, spanY, radius, thickness; unsigned tint; bool hollow; };
+  struct Body { float phase, rateX, rateY, spanX, spanY, radius, thickness, bump; unsigned tint; bool hollow; };
 
   std::array<uint16_t, width * height> frame{};
   std::array<float, 257> wave{};
@@ -49,6 +57,8 @@ class Painting {
   uint32_t rng = 1, evolutionRng = 1;
   unsigned kind = 0, palette = 0, count = 0;
   float phase = 0, breath = 0, pace = 1;
+  // The last note, as a decaying strength and a position in the register.
+  float flash = 0, notePlace = 0.5f;
   std::array<float, 8> parameters{};
   std::array<float, 8> evolving{}, goals{};
   float evolutionAt = 0;
@@ -82,8 +92,6 @@ class Painting {
   // Tiles: the last few seconds of the music, so a swell can travel across
   // the grid instead of every tile answering the same instant.
   std::array<float, 20> pulse{};
-  unsigned pulseHead = 0;
-  float pulseAt = 0;
 
   unsigned random() { rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5; return rng; }
   float unit() { return float(random() >> 8) / 16777216.0f; }
@@ -215,6 +223,9 @@ class Painting {
     // lit as glowing lines: a printed contour map rather than a light show.
     float t = phase;
     float ax = 120 + fcos(t * 0.015f) * (34 + evolving[0] * 62);
+    // One source is drawn toward the pitch of whatever was last played, so a
+    // melody moving up the register walks the pattern across the frame.
+    ax += (notePlace - 0.5f) * 70.0f * flash;
     float ay = 67 + fsin(t * 0.012f) * (18 + evolving[1] * 34);
     float bx = 120 - fcos(t * 0.009f + 0.31f) * (28 + evolving[2] * 70);
     float by = 67 - fsin(t * 0.017f + 0.17f) * (16 + evolving[3] * 38);
@@ -223,7 +234,10 @@ class Painting {
     float tilt = evolving[6];
     float px = fcos(tilt) * 0.0065f, py = fsin(tilt) * 0.0065f;
     unsigned levels = 5 + unsigned(parameters[0] * 4.0f);
-    float rise = breath * 0.06f;
+    // A note lifts the whole field for a moment, which walks every contour
+    // outward at once: the cheapest way to make a per-pixel field answer an
+    // event, and the only one this board can afford per frame.
+    float rise = breath * 0.04f + flash * 0.075f;
     // Levels alternate between an ink and a tint of that ink toward the
     // ground. Stepping toward black instead, the way a dark-ground family
     // would, turns every one of these palettes to mud.
@@ -274,7 +288,7 @@ class Painting {
     figureT = 0;
     figureAt = range(20.0f, 30.0f);
   }
-  void renderPendulum(float dt) {
+  void renderPendulum(float dt, uint8_t note, float weight) {
     // The pen is slow on purpose. Run it at the speed the figure is traversed
     // and the whole loop closes several times a second, which fills the page
     // in a moment and then has nothing left to show.
@@ -283,7 +297,8 @@ class Painting {
     float span_ = dt * (0.085f + parameters[1] * 0.06f) * (1.0f + breath * 0.35f);
     unsigned steps = 12 + unsigned(evolving[0] * 16);
     float stepT = span_ / float(steps);
-    float rx = 76 + evolving[1] * 36, ry = 44 + evolving[2] * 18;
+    float rx = (76 + evolving[1] * 36) * (1.0f + flash * 0.10f);
+    float ry = (44 + evolving[2] * 18) * (1.0f + flash * 0.10f);
     float lx = 0, ly = 0;
     for (unsigned i = 0; i <= steps; ++i) {
       float t = figureT + stepT * float(i);
@@ -298,6 +313,9 @@ class Painting {
       line(lx, ly, x, y, color(ink[tint], step(unsigned(t * figureFreq[0] * 0.5f) % 2)));
       lx = x; ly = y;
     }
+    // A bead where the pen was when the note sounded, so the line keeps a
+    // record of the notes it was drawn by.
+    if (note) disc(lx, ly, 2.0f + weight * 3.0f, color(ink[unsigned(notePlace * 3.0f) % 3]));
     figureT += span_;
   }
 
@@ -350,7 +368,9 @@ class Painting {
           && frame[unsigned(ay) * width + unsigned(ax)] != ground) { n.alive = false; continue; }
       // A split costs both children some weight, so the structure thins as it
       // spreads and finishes on its own rather than filling the screen.
-      float branchChance = (0.055f + evolving[1] * 0.080f) * std::min(1.0f, n.weight * 0.7f);
+      // Kept low: notes do most of the branching now, and this is only here
+      // so a structure still develops through a long rest.
+      float branchChance = (0.012f + evolving[1] * 0.022f) * std::min(1.0f, n.weight * 0.7f);
       if (unit() < branchChance && nodeCount < nodes.size()) {
         Node& child = nodes[nodeCount++];
         float turn = range(0.045f, 0.125f) * (unit() < 0.5f ? -1.0f : 1.0f);
@@ -373,7 +393,29 @@ class Painting {
     }
     liveNodes = live;
   }
-  void renderGrowth(float dt) {
+  void renderGrowth(float dt, uint8_t note, float weight) {
+    // A note splits a living tip. Branching was on a per-step probability
+    // before, which grew a perfectly good structure that had nothing to do
+    // with the phrase that was playing.
+    if (note && liveNodes > 0 && nodeCount < nodes.size()) {
+      unsigned target = unsigned(notePlace * float(nodeCount)) % nodeCount;
+      for (unsigned tries = 0; tries < nodeCount; ++tries) {
+        Node& n = nodes[(target + tries) % nodeCount];
+        if (!n.alive || n.weight < 0.5f) continue;
+        Node& child = nodes[nodeCount++];
+        float turn = (0.05f + weight * 0.09f) * (unit() < 0.5f ? -1.0f : 1.0f);
+        float tc = fcos(turn), ts = fsin(turn);
+        child = n;
+        child.dx = n.dx * tc - n.dy * ts;
+        child.dy = n.dx * ts + n.dy * tc;
+        child.weight = n.weight * (0.62f + weight * 0.2f);
+        child.depth = uint8_t(n.depth + 1);
+        child.alive = true;
+        n.weight *= 0.88f;
+        ++liveNodes;
+        break;
+      }
+    }
     if (liveNodes > 0) {
       // No mark at the moving tip: on a frame that is never cleared, a disc
       // drawn at each tip every frame lays down a dotted trail beside every
@@ -406,16 +448,22 @@ class Painting {
       b.hollow = unit() < 0.45f;
     }
   }
-  void renderEclipse() {
+  void renderEclipse(float dt, uint8_t note, float weight) {
+    if (note) {
+      unsigned pick = unsigned(notePlace * float(bodyCount)) % bodyCount;
+      bodies[pick].bump = 0.5f + weight * 0.9f;
+      if (weight > 0.55f) bodies[pick].hollow = !bodies[pick].hollow;
+    }
     // Flat discs and punched rings, drifting slowly past each other. The
     // composition is whatever their overlaps happen to make; the later a body
     // is drawn, the more of it stays visible.
     clear();
     for (unsigned i = 0; i < bodyCount; ++i) {
-      const Body& b = bodies[i];
+      Body& b = bodies[i];
       float x = 120 + fsin(phase * b.rateX + b.phase) * b.spanX;
       float y = 67 + fsin(phase * b.rateY + b.phase * 1.7f) * b.spanY;
-      float r = b.radius * (0.92f + evolving[i % 8] * 0.2f) + breath * 5.0f;
+      b.bump = std::max(0.0f, b.bump - dt * 1.4f);
+      float r = b.radius * (0.92f + evolving[i % 8] * 0.2f + b.bump * 0.34f) + breath * 3.0f;
       uint16_t c = color(ink[b.tint], step(i % 3 == 2 ? 1 : 0));
       if (b.hollow) ring(x, y, r, b.thickness, c); else disc(x, y, r, c);
     }
@@ -466,18 +514,22 @@ class Painting {
       }
   }
 
-  void renderTiles(float dt) {
+  void renderTiles(float dt, uint8_t note, float weight) {
+    if (note) {
+      // The note lights its own column. The history buffer this replaces
+      // filled from the output level, so two notes inside a quarter second
+      // arrived as one taller reading.
+      unsigned slot = unsigned(notePlace * float(pulse.size())) % pulse.size();
+      pulse[slot] = std::max(pulse[slot], 0.45f + weight * 0.55f);
+    }
     // A grid of flat squares whose sizes are the last five seconds of the
     // music, one column per quarter second, travelling across the grid.
     // Driving them from a wave of their own instead made every tile change
     // at once, all the time, which was frantic and had nothing to do with
     // what was playing.
-    pulseAt -= dt;
-    if (pulseAt <= 0) {
-      pulseAt = 0.25f;
-      pulse[pulseHead] = breath;
-      pulseHead = (pulseHead + 1) % pulse.size();
-    }
+    // Everything lit fades back, so a column stands out for a beat or two
+    // and the grid settles when the music stops.
+    for (auto& value : pulse) value = std::max(0.0f, value - dt * 0.55f);
     clear();
     unsigned columns = 7 + unsigned(parameters[3] * 4.0f), rows = 4 + unsigned(parameters[4] * 3.0f);
     float cw = float(width) / float(columns), ch = float(height) / float(rows);
@@ -490,13 +542,13 @@ class Painting {
       for (unsigned col = 0; col < columns; ++col) {
         float u = (float(col) + 0.5f) / float(columns), v = (float(row) + 0.5f) / float(rows);
         float travel = u * dx + v * dy;
-        // Interpolated between the two nearest samples, so a swell glides
-        // across the columns instead of stepping a column at a time.
-        unsigned slot = col % pulse.size();
-        unsigned age = (pulseHead + pulse.size() - 1 - slot) % pulse.size();
-        unsigned older = (age + pulse.size() - 1) % pulse.size();
-        float blend = 1.0f - pulseAt * 4.0f;
-        float heard = pulse[age] + (pulse[older] - pulse[age]) * std::max(0.0f, std::min(1.0f, blend));
+        // Each column reads its own slot, plus a little of its neighbours,
+        // so a note opens a soft group rather than one hard stripe.
+        unsigned slot = unsigned(u * float(pulse.size())) % pulse.size();
+        unsigned before = (slot + pulse.size() - 1) % pulse.size();
+        unsigned after = (slot + 1) % pulse.size();
+        float heard = pulse[slot] + (pulse[before] + pulse[after]) * 0.35f;
+        heard = std::min(1.0f, heard);
         // Rows answer the same moment at different depths, so a loud passage
         // opens the column from the middle outward.
         float depth = 1.0f - std::abs(v - 0.5f) * 1.4f;
@@ -546,11 +598,12 @@ class Painting {
     // The ridge spacing opens and closes with the music: the whole print
     // breathes, which is the largest thing this family can do and the only
     // one that reads across a room.
-    float scale = ridgeScale * (1.0f - breath * 0.16f);
+    float scale = ridgeScale * (1.0f - breath * 0.10f - flash * 0.14f);
     float dirX = fcos(ridgeDir) * scale, dirY = fsin(ridgeDir) * scale;
     float cx[3], cy[3], charge[3], radial[3], reach2[3];
     for (unsigned i = 0; i < whorlCount; ++i) {
-      cx[i] = whorls[i].x + fsin(t * 0.042f + whorls[i].phase) * whorls[i].driftX * 9;
+      cx[i] = whorls[i].x + fsin(t * 0.042f + whorls[i].phase) * whorls[i].driftX * 9
+            + (notePlace - 0.5f) * 26.0f * flash;
       cy[i] = whorls[i].y + fsin(t * 0.035f + whorls[i].phase * 1.7f) * whorls[i].driftY * 9;
       charge[i] = whorls[i].charge;
       radial[i] = whorls[i].radial;
@@ -652,7 +705,15 @@ class Painting {
       }
     }
   }
-  void renderReef(float dt) {
+  void renderReef(float dt, uint8_t note, float weight) {
+    if (note) {
+      // A note seeds a colony. The reef grows where the melody has been.
+      unsigned bx = 4 + unsigned(notePlace * float(reefW - 9));
+      unsigned by = 4 + random() % (reefH - 9);
+      unsigned r = 1 + unsigned(weight * 2.5f);
+      for (unsigned y = by - r; y <= by + r; ++y)
+        for (unsigned x = bx - r; x <= bx + r; ++x) { reefU[y * reefW + x] = 1024; reefV[y * reefW + x] = 2048; }
+    }
     dropAt -= dt;
     if (dropAt <= 0) {
       // A new colony, dropped in every so often. Left alone the field settles
@@ -766,22 +827,29 @@ class Painting {
   unsigned visualFamily() const { return kind; }
   const uint16_t* pixels() const { return frame.data(); }
 
-  void render(float seconds, float audio) {
+  void render(float seconds, float audio, uint8_t note = 0, float weight = 0.6f) {
     seconds = std::max(0.0f, std::min(0.1f, seconds));
     const float dt = seconds;
+    flash = std::max(0.0f, flash - seconds * 2.4f);
+    if (note) {
+      flash = 1;
+      // Rill's melody is folded into MIDI 60-91, so that is the range a
+      // position across the frame is measured against.
+      notePlace = std::max(0.0f, std::min(1.0f, (float(note) - 60.0f) / 31.0f));
+    }
     phase += seconds * pace;
     if (phase > 100000.0f) phase -= 100000.0f;
     breath += (std::max(0.0f, std::min(1.0f, audio)) - breath) * std::min(1.0f, seconds * 5);
     evolve(seconds);
     switch (kind) {
       case Contour: renderContour(); break;
-      case Pendulum: renderPendulum(seconds); break;
-      case Growth: renderGrowth(seconds); break;
-      case Eclipse: renderEclipse(); break;
+      case Pendulum: renderPendulum(seconds, note, weight); break;
+      case Growth: renderGrowth(seconds, note, weight); break;
+      case Eclipse: renderEclipse(seconds, note, weight); break;
       case Truchet: renderTruchet(dt); break;
-      case Tiles: renderTiles(dt); break;
+      case Tiles: renderTiles(dt, note, weight); break;
       case Ridges: renderRidges(); break;
-      default: renderReef(dt); break;
+      default: renderReef(dt, note, weight); break;
     }
   }
 };

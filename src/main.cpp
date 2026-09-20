@@ -16,6 +16,9 @@ static uint32_t infoAt = 0, worstVisualUs = 0;
 static int16_t buffers[3][512];
 static std::atomic<bool> playing{true}, changeRequested{false}, repaintRequested{false};
 static std::atomic<uint32_t> sceneInfo{0}, audioLevel{0};
+// Notes cross from the audio task to the display loop: the visuals answer
+// individual notes, which a level meter cannot tell apart.
+static std::atomic<uint32_t> struckNote{0}, struckWeight{600};
 static std::atomic<uint32_t> worstRenderUs{0}, queueErrors{0};
 static uint8_t volume = 165;
 
@@ -31,6 +34,10 @@ void audioTask(void*) {
     uint32_t energy = 0;
     for (auto sample : buffers[index]) energy += unsigned(std::abs(int(sample)));
     audioLevel.store(energy / 512);
+    if (uint8_t struck = engine.drainOnset()) {
+      struckWeight.store(uint32_t(engine.onsetWeight() * 1000));
+      struckNote.store(struck);
+    }
     if (elapsed > worstRenderUs) worstRenderUs = elapsed;
     while (!M5.Speaker.playRaw(buffers[index], 512, garden::rate, false, 1, 0)) {
       ++queueErrors;
@@ -128,7 +135,8 @@ void loop() {
       float dt = std::min(0.25f,float(uint32_t(now-frameAt))/1000);
       frameAt = now;
       uint32_t started = micros();
-      painting.render(dt,float(audioLevel.load())/8000.0f);
+      painting.render(dt,float(audioLevel.load())/8000.0f,
+                      uint8_t(struckNote.exchange(0)),float(struckWeight.load())/1000.0f);
       M5.Display.pushImage(0,0,240,135,reinterpret_cast<const lgfx::rgb565_t*>(painting.pixels()));
       worstVisualUs = std::max(worstVisualUs,uint32_t(micros()-started));
     }

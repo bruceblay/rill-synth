@@ -1,8 +1,14 @@
-# Rill
+# Rill Synth
 
 **rill** /rɪl/ *noun* — a small stream.
 
-A pocket-sized generative instrument for the **M5Stack StickS3**. Rill composes delicate, evolving music and animated artwork entirely on the device. Tap for a new piece. Shake for a new visual.
+A pocket-sized generative instrument for the **M5Stack StickS3**. Rill Synth composes delicate, evolving music and animated artwork entirely on the device, synthesizing every note as it plays. Tap for a new piece. Shake for a new visual.
+
+The first of the family, and originally just *Rill*. Its siblings are
+[Rill Drums](../rill-drums), [Rill Field](../rill-field) and
+[Rill Mallet](../rill-mallet), which plays the same kind of score on recorded
+instruments rather than synthesized ones. The published repository and the
+M5Burner listing are still called Rill.
 
 <img src="docs/images/rill-scale.jpg" alt="Rill running on a StickS3 beside an AirPod for scale" width="640">
 
@@ -49,6 +55,16 @@ Shake to change the visual; tap the front button to generate new music and a new
 - **Reef** — a Gray-Scott reaction, the chemistry behind both brain coral and fingerprints, run at half resolution and read at full so its edges stay organic.
 
 Everything is opaque shapes with hard edges: filled spans, discs, rings punched back to the ground, single-pixel lines. There is no additive blending, dithering or soft falloff anywhere in the renderer. The palettes are daylight ones, a coloured ground with three inks that sit on it, in the register of a faded photograph rather than of emitted light.
+
+All seven answer individual notes as well as the output level, since a level
+meter cannot tell one note from two and says nothing about pitch. What a note
+does differs by family, because a drawing and a field cannot take an event the
+same way. The pendulum leaves a bead on its line where the pen was when the
+note sounded. A note splits a living tip in growth, lights a column in tiles,
+pulses the body its pitch points at in eclipse, and seeds a colony in the
+reef. Contour and ridges are resolved per pixel and cannot afford to draw
+anything extra, so a note pushes the whole field instead: every contour walks
+outward at once, and the fingerprint's ridge spacing opens.
 
 ## Hardware
 
