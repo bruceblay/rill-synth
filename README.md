@@ -1,3 +1,5 @@
+<img src="docs/images/visuals-study.png" alt="Current Rill Synth visuals: Contour, Pendulum, Growth, Eclipse, Tiles and Reef" width="720">
+
 # Rill Synth
 
 **rill** /rɪl/ *noun* — a small stream.
@@ -8,8 +10,6 @@ The first of the family, and originally just *Rill*. Its siblings are
 [Rill Drums](../rill-drums), [Rill Field](../rill-field) and
 [Rill Mallet](../rill-mallet), which plays the same kind of score on recorded
 instruments rather than synthesized ones. The M5Burner listing is still called Rill.
-
-<img src="docs/images/visuals-study.png" alt="Current Rill Synth visuals: Contour, Pendulum, Growth, Eclipse, Tiles and Reef" width="720">
 
 *Current renderer captures at the device’s 240 × 135 resolution. Top: Contour, Pendulum, Growth. Bottom: Eclipse, Tiles, Reef.*
 
