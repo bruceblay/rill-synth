@@ -7,12 +7,11 @@ A pocket-sized generative instrument for the **M5Stack StickS3**. Rill Synth com
 The first of the family, and originally just *Rill*. Its siblings are
 [Rill Drums](../rill-drums), [Rill Field](../rill-field) and
 [Rill Mallet](../rill-mallet), which plays the same kind of score on recorded
-instruments rather than synthesized ones. The published repository and the
-M5Burner listing are still called Rill.
+instruments rather than synthesized ones. The M5Burner listing is still called Rill.
 
-<img src="docs/images/rill-scale.jpg" alt="Rill running on a StickS3 beside an AirPod for scale" width="640">
+<img src="docs/images/visuals-study.png" alt="Current Rill Synth visuals: Contour, Pendulum, Growth, Eclipse, Tiles and Reef" width="720">
 
-*Rill on the StickS3, with an AirPod for scale.*
+*Current renderer captures at the device’s 240 × 135 resolution. Top: Contour, Pendulum, Growth. Bottom: Eclipse, Tiles, Reef.*
 
 Rill is an experimental instrument. It needs no Wi-Fi, account, audio files, or cloud service. Its sound has been developed around the StickS3's small built-in speaker.
 
@@ -27,8 +26,6 @@ Rill is an experimental instrument. It needs no Wi-Fi, account, audio files, or 
 
 The data view shows the voice, key, mode, generation number, tempo, delay rhythm, volume and battery estimate. New musical generations also select a new visual. Shake changes only the visual. The gesture uses two acceleration peaks and a short cooldown; a single tilt is not a shake.
 
-<img src="docs/images/rill-data.jpg" alt="Rill data view showing the voice, key, tempo, delay, volume and battery" width="640">
-
 ## What it makes
 
 - **Seven timbres:** Bongo, Bars, Wood, Bells, Wire, Halo and Synth. These combine resonant modes, plucked tones, FM and filtered oscillators; they are interpretations, not exact hardware or acoustic-instrument emulations.
@@ -38,13 +35,17 @@ The data view shows the voice, key, mode, generation number, tempo, delay rhythm
 
 New music fades between generations. Generations are not saved across restarts. Device-to-device ensemble sync is a [design proposal](SYNC-DESIGN.md), not an available feature.
 
-## The six visuals
+## The current visuals
 
-Shake to change the visual; tap the front button to generate new music and a new visual together.
+These are captures from the current `visuals-study` renderer, driven by the Synth engine—not photographs of the device. [Development source](https://github.com/bruceblay/rill-synth/tree/visuals-study). Published firmware releases may show the earlier visual set.
 
-<img src="docs/images/visuals-study.png" alt="Contact sheet of the six visual families" width="720">
-
-*Top row: contour, pendulum, growth, eclipse. Bottom row: tiles, reef. These are frames from the renderer itself, at the same 240x135 the device draws, taken at a settled moment for each family. They are not photographs of the screen; device photos are still to be taken.*
+| Contour | Pendulum |
+| --- | --- |
+| ![Contour](docs/images/current-contour.png) | ![Pendulum](docs/images/current-pendulum.png) |
+| **Growth** | **Eclipse** |
+| ![Growth](docs/images/current-growth.png) | ![Eclipse](docs/images/current-eclipse.png) |
+| **Tiles** | **Reef** |
+| ![Tiles](docs/images/current-tiles.png) | ![Reef](docs/images/current-reef.png) |
 
 - **Contour** — two travelling wave sources and a drifting plane wave sum into a field, and the field is quantised into flat areas of ink and tint, the way a printed contour map is.
 - **Pendulum** — a harmonograph traces a figure slowly enough to follow, in long passes of flat colour, then the page is changed and a different figure begins.

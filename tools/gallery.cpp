@@ -3,7 +3,6 @@
 #include "../src/Garden.h"
 #include "../src/Light.h"
 #include <array>
-#include <array>
 #include <cstdlib>
 #include <fstream>
 #include <memory>
@@ -11,7 +10,7 @@
 // Six actual renderer frames, arranged into a two-row contact sheet at 2x.
 int main(int argc,char** argv) {
   if(argc!=2) return 1;
-  constexpr unsigned width=960,height=270;
+  constexpr unsigned width=720,height=270;
   // The families do not arrive at the same rate: trails and growth need time
   // on the clock before there is anything to photograph, while the field
   // families are complete on their first frame. These are settled moments,
@@ -40,7 +39,7 @@ int main(int argc,char** argv) {
       painting->render(1.0f/12,energy/(512*5*8000.0f),note,weight);
     }
     for(unsigned y=0;y<135;++y) for(unsigned x=0;x<240;++x)
-      (*pixels)[(y+(slot/4)*135)*width+x+(slot%4)*240]=painting->pixels()[y*240+x];
+      (*pixels)[(y+(slot/3)*135)*width+x+(slot%3)*240]=painting->pixels()[y*240+x];
   }
   std::ofstream out(argv[1],std::ios::binary);
   out<<"P6\n"<<width*2<<' '<<height*2<<"\n255\n";
