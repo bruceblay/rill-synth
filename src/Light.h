@@ -8,7 +8,7 @@
 
 // Seven generative visual families, drawn flat and played by the score.
 //
-// Every family answers individual notes as well as the output level. A level
+// Except Contour, families answer individual notes as well as output level. A level
 // meter cannot tell one note from two and says nothing about pitch, and the
 // families that only had a level to work with looked like they were running
 // beside the music rather than with it. What a note does differs by family,
@@ -223,9 +223,6 @@ class Painting {
     // lit as glowing lines: a printed contour map rather than a light show.
     float t = phase;
     float ax = 120 + fcos(t * 0.015f) * (34 + evolving[0] * 62);
-    // One source is drawn toward the pitch of whatever was last played, so a
-    // melody moving up the register walks the pattern across the frame.
-    ax += (notePlace - 0.5f) * 70.0f * flash;
     float ay = 67 + fsin(t * 0.012f) * (18 + evolving[1] * 34);
     float bx = 120 - fcos(t * 0.009f + 0.31f) * (28 + evolving[2] * 70);
     float by = 67 - fsin(t * 0.017f + 0.17f) * (16 + evolving[3] * 38);
@@ -234,10 +231,8 @@ class Painting {
     float tilt = evolving[6];
     float px = fcos(tilt) * 0.0065f, py = fsin(tilt) * 0.0065f;
     unsigned levels = 5 + unsigned(parameters[0] * 4.0f);
-    // A note lifts the whole field for a moment, which walks every contour
-    // outward at once: the cheapest way to make a per-pixel field answer an
-    // event, and the only one this board can afford per frame.
-    float rise = breath * 0.04f + flash * 0.075f;
+    // Keep the gentle level response, without per-note displacement or lift.
+    float rise = breath * 0.04f;
     // Levels alternate between an ink and a tint of that ink toward the
     // ground. Stepping toward black instead, the way a dark-ground family
     // would, turns every one of these palettes to mud.
