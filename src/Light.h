@@ -8,7 +8,7 @@
 
 // Seven generative visual families, drawn flat and played by the score.
 //
-// Except Eclipse, families answer individual notes as well as output level. A level
+// Every family answers individual notes as well as the output level. A level
 // meter cannot tell one note from two and says nothing about pitch, and the
 // families that only had a level to work with looked like they were running
 // beside the music rather than with it. What a note does differs by family,
@@ -49,7 +49,7 @@ class Painting {
   // Growth: a branch tip. Dead tips stay in the array as terminals.
   struct Node { float x, y, dx, dy, weight; uint8_t depth; bool alive; };
   // Eclipse: a flat disc or a punched ring, drifting on its own two-rate path.
-  struct Body { float phase, rateX, rateY, spanX, spanY, radius, thickness; unsigned tint; bool hollow; };
+  struct Body { float phase, rateX, rateY, spanX, spanY, radius, thickness, bump; unsigned tint; bool hollow; };
 
   std::array<uint16_t, width * height> frame{};
   std::array<float, 257> wave{};
@@ -448,7 +448,12 @@ class Painting {
       b.hollow = unit() < 0.45f;
     }
   }
-  void renderEclipse() {
+  void renderEclipse(float dt, uint8_t note, float weight) {
+    if (note) {
+      unsigned pick = unsigned(notePlace * float(bodyCount)) % bodyCount;
+      bodies[pick].bump = 0.5f + weight * 0.9f;
+      if (weight > 0.55f) bodies[pick].hollow = !bodies[pick].hollow;
+    }
     // Flat discs and punched rings, drifting slowly past each other. The
     // composition is whatever their overlaps happen to make; the later a body
     // is drawn, the more of it stays visible.
@@ -457,7 +462,8 @@ class Painting {
       Body& b = bodies[i];
       float x = 120 + fsin(phase * b.rateX + b.phase) * b.spanX;
       float y = 67 + fsin(phase * b.rateY + b.phase * 1.7f) * b.spanY;
-      float r = b.radius * (0.92f + evolving[i % 8] * 0.2f) + breath * 3.0f;
+      b.bump = std::max(0.0f, b.bump - dt * 1.4f);
+      float r = b.radius * (0.92f + evolving[i % 8] * 0.2f + b.bump * 0.34f) + breath * 3.0f;
       uint16_t c = color(ink[b.tint], step(i % 3 == 2 ? 1 : 0));
       if (b.hollow) ring(x, y, r, b.thickness, c); else disc(x, y, r, c);
     }
@@ -839,7 +845,7 @@ class Painting {
       case Contour: renderContour(); break;
       case Pendulum: renderPendulum(seconds, note, weight); break;
       case Growth: renderGrowth(seconds, note, weight); break;
-      case Eclipse: renderEclipse(); break;
+      case Eclipse: renderEclipse(seconds, note, weight); break;
       case Truchet: renderTruchet(dt); break;
       case Tiles: renderTiles(dt, note, weight); break;
       case Ridges: renderRidges(); break;
