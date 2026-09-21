@@ -39,8 +39,7 @@ int main() {
     auto before=hash(*a); a->regenerate(); a->render(0,0);
     assert(hash(*a)!=before);
   }
-  // Every family answers notes, not just the level: the same level with a
-  // different phrase has to look different.
+  // Eclipse ignores note hits; other families still answer different phrases.
   for(unsigned slot=0;slot<light::Painting::rotationCount;++slot) {
     unsigned family=light::Painting::familyAt(slot);
     a->seed(17); b->seed(17);
@@ -49,7 +48,17 @@ int main() {
       a->render(.083f,.4f,i%6==0?uint8_t(64+(i%17)):uint8_t(0),.7f);
       b->render(.083f,.4f,i%6==0?uint8_t(86-(i%17)):uint8_t(0),.7f);
     }
-    assert(hash(*a)!=hash(*b));
+    if(family==light::Painting::Eclipse) assert(hash(*a)==hash(*b));
+    else assert(hash(*a)!=hash(*b));
+  }
+  // Hit timing, pitch, and strength must not change a single Eclipse frame.
+  a->seed(17); b->seed(17);
+  while(a->visualFamily()!=light::Painting::Eclipse){a->regenerate();b->regenerate();}
+  for(unsigned i=0;i<360;++i){
+    float level=float(i%31)/30;
+    a->render(.083f,level,i%3==0?uint8_t(60+i%32):uint8_t(0),float(i%11)/10);
+    b->render(.083f,level,0,0);
+    assert(hash(*a)==hash(*b));
   }
   std::cout<<"Visual transitions, deterministic seeds, note and level response and frame bounds passed\n";
 }

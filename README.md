@@ -55,13 +55,13 @@ Shake to change the visual; tap the front button to generate new music and a new
 
 Everything is opaque shapes with hard edges: filled spans, discs, rings punched back to the ground, single-pixel lines. There is no additive blending, dithering or soft falloff anywhere in the renderer. The palettes are daylight ones, a coloured ground with three inks that sit on it, in the register of a faded photograph rather than of emitted light.
 
-All seven answer individual notes as well as the output level, since a level
+Except Eclipse, the families answer individual notes as well as output level, since a level
 meter cannot tell one note from two and says nothing about pitch. What a note
 does differs by family, because a drawing and a field cannot take an event the
 same way. The pendulum leaves a bead on its line where the pen was when the
 note sounded. A note splits a living tip in growth, lights a column in tiles,
-pulses the body its pitch points at in eclipse, and seeds a colony in the
-reef. Contour is resolved per pixel and cannot afford to draw anything
+and seeds a colony in the reef. Eclipse keeps its slow drift and gentle
+level response without hit-driven size changes or hollow/solid flips. Contour is resolved per pixel and cannot afford to draw anything
 extra, so a note pushes the whole field instead and every contour walks
 outward at once.
 
