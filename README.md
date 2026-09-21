@@ -1,10 +1,10 @@
+<img src="docs/images/visuals-study.png" alt="Current Rill Synth visuals: Contour, Pendulum, Growth, Eclipse, Tiles and Reef" width="720">
+
 # Rill Synth
 
 **rill** /rɪl/ *noun* — a small stream.
 
 A pocket-sized generative instrument for the **M5Stack StickS3**. Rill composes delicate, evolving music and animated artwork entirely on the device. Tap for a new piece. Shake for a new visual.
-
-<img src="docs/images/visuals-study.png" alt="Current Rill Synth visuals: Contour, Pendulum, Growth, Eclipse, Tiles and Reef" width="720">
 
 *Current renderer captures at the device’s 240 × 135 resolution. Top: Contour, Pendulum, Growth. Bottom: Eclipse, Tiles, Reef.*
 
