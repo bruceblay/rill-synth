@@ -1,12 +1,12 @@
-# Rill
+# Rill Synth
 
 **rill** /rɪl/ *noun* — a small stream.
 
 A pocket-sized generative instrument for the **M5Stack StickS3**. Rill composes delicate, evolving music and animated artwork entirely on the device. Tap for a new piece. Shake for a new visual.
 
-<img src="docs/images/rill-scale.jpg" alt="Rill running on a StickS3 beside an AirPod for scale" width="640">
+<img src="docs/images/visuals-study.png" alt="Current Rill Synth visuals: Contour, Pendulum, Growth, Eclipse, Tiles and Reef" width="720">
 
-*Rill on the StickS3, with an AirPod for scale.*
+*Current renderer captures at the device’s 240 × 135 resolution. Top: Contour, Pendulum, Growth. Bottom: Eclipse, Tiles, Reef.*
 
 Rill is an experimental instrument. It needs no Wi-Fi, account, audio files, or cloud service. Its sound has been developed around the StickS3's small built-in speaker.
 
@@ -21,28 +21,26 @@ Rill is an experimental instrument. It needs no Wi-Fi, account, audio files, or 
 
 The data view shows the voice, key, mode, generation number, tempo, delay rhythm, volume and battery estimate. New musical generations also select a new visual. Shake changes only the visual. The gesture uses two acceleration peaks and a short cooldown; a single tilt is not a shake.
 
-<img src="docs/images/rill-data.jpg" alt="Rill data view showing the voice, key, tempo, delay, volume and battery" width="640">
-
 ## What it makes
 
 - **Seven timbres:** Bongo, Bars, Wood, Bells, Wire, Halo and Synth. These combine resonant modes, plucked tones, FM and filtered oscillators; they are interpretations, not exact hardware or acoustic-instrument emulations.
 - **Generated phrases:** six contour tendencies guide newly composed melodies, variable phrase spans, interval preferences and rhythms. Ideas develop through changed endings, rhythmic rephrasing, recalled fragments and new descendants. Sparse answering parts follow their own timing. Twelve tonics, three modes, four harmonic behaviors and gradual changes in activity give each piece its own phrasing.
 - **Evolving echoes:** two tempo-related taps, smooth or stepped feedback, occasional stronger repeat passages and intermittent smearing.
-- **Six visual families:** elastic creatures, moving cutouts, a landscape ring sculpture, drifting particles, folding tiles and reflected rays. Each shake selects a different family. Particles, tiles and reflections develop new arrangements over time.
+- **Visuals:** the current development set is shown below. This branch’s firmware and existing releases retain the earlier six-family renderer.
 
 New music fades between generations. Generations are not saved across restarts. Device-to-device ensemble sync is a [design proposal](SYNC-DESIGN.md), not an available feature.
 
-## On the device
+## The current visuals
 
-Photos of all six visual families running on the StickS3. Shake to change the visual; tap the front button to generate new music and a new visual together.
+These are captures from the current `visuals-study` renderer, driven by the Synth engine—not photographs of the device. [Development source](https://github.com/bruceblay/rill-synth/tree/visuals-study). Published firmware releases may show the earlier visual set.
 
-| Elastic creatures | Moving cutouts |
+| Contour | Pendulum |
 | --- | --- |
-| ![Elastic colored blobs](docs/images/rill-blobs.jpg) | ![Striped moving cutout](docs/images/rill-cutout.jpg) |
-| **Ring sculpture** | **Drifting particles** |
-| ![Landscape gradient ring sculpture](docs/images/rill-rings.jpg) | ![Colored particles gathering into groups](docs/images/rill-particles.jpg) |
-| **Folding tiles** | **Reflected rays** |
-| ![Colored folding tiles](docs/images/rill-tiles.jpg) | ![Colored reflected light rays](docs/images/rill-reflections.jpg) |
+| ![Contour](docs/images/current-contour.png) | ![Pendulum](docs/images/current-pendulum.png) |
+| **Growth** | **Eclipse** |
+| ![Growth](docs/images/current-growth.png) | ![Eclipse](docs/images/current-eclipse.png) |
+| **Tiles** | **Reef** |
+| ![Tiles](docs/images/current-tiles.png) | ![Reef](docs/images/current-reef.png) |
 
 ## Hardware
 
