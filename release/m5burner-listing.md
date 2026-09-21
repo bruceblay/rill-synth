@@ -2,7 +2,7 @@
 
 Version: 0.2.0
 Device: StickS3
-GitHub: https://github.com/bruceblay/rill
+GitHub: https://github.com/bruceblay/rill-synth
 Cover: docs/images/visuals.png
 
 ## Description
@@ -21,7 +21,7 @@ Controls:
 
 For StickS3 only. Plays through the built-in speaker. Bluetooth audio, external audio output and ensemble synchronization are not supported in this release. Battery percentage is approximate.
 
-Source, build instructions and release downloads: https://github.com/bruceblay/rill
+Source, build instructions and release downloads: https://github.com/bruceblay/rill-synth
 GPL-3.0-or-later; dependencies retain their own licenses.
 
 ## Version description

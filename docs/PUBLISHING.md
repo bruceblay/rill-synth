@@ -24,7 +24,7 @@ M5Burner distribution is a separate step: prepare a real device cover photo and 
 
 ## Release status — 2026-09-12
 
-- [Rill 0.1.0](https://github.com/bruceblay/rill/releases/tag/v0.1.0) is public, tagged at `acb96c5e15b4ae42beca8e7195472b40c4e18141`.
+- [Rill 0.1.0](https://github.com/bruceblay/rill-synth/releases/tag/v0.1.0) is public, tagged at `acb96c5e15b4ae42beca8e7195472b40c4e18141`.
 - Includes the expanded volume range approved after on-device listening. The startup level remains 64%.
 - Firmware build and release-commit CI passed; all release checksums verified locally.
 - M5Burner upload succeeded on September 12, 2026. Rill 0.1.0 is marked **Pending Public** (awaiting review), under StickS3 with Audio & Media and Display & Art categories. The selected cover is the six-visual montage (`docs/images/visuals.png`).
@@ -37,7 +37,7 @@ Release files are built with `python tools/package_release.py` (version from `VE
 
 ## 0.2.0 upload status — 2026-09-12
 
-- GitHub release 0.2.0 is public: https://github.com/bruceblay/rill/releases/tag/v0.2.0.
+- GitHub release 0.2.0 is public: https://github.com/bruceblay/rill-synth/releases/tag/v0.2.0.
 - M5Burner rejected the new-version upload with `新增版本不能修改固件说明，请使用固件编辑接口` (new versions cannot modify the firmware description; use the firmware editor).
 - Matching the existing editor text and saving the desired description through the separate shared-data editor did not resolve the rejection. A temporary withdrawal of 0.1.0 was also ineffective; its Pending Public review status was restored and verified.
 - The shared description now documents the developing sequencer. The original visual montage cover was retained, as requested.
