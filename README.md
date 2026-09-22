@@ -2,7 +2,7 @@
 
 # Rill Synth
 
-**rill** /rɪl/ *noun* — a small stream.
+**rill** /rɪl/ *noun* — a small stream or a tiny, shallow channel cut into soil by running water.
 
 A generative synthesizer for the **M5Stack StickS3**. Seven voices compose delicate, evolving melodies with generative visuals. Tap for a new piece. Shake for a new visual. Sound and visuals run entirely on the device, without Wi-Fi or an account.
 
