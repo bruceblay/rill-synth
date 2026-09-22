@@ -1,41 +1,14 @@
-<img src="docs/images/visuals-study.png" alt="Current Rill Synth visuals: Contour, Pendulum, Growth, Eclipse, Tiles and Reef" width="720">
+<img src="docs/images/visuals-study.png" alt="Current Rill Synth visuals: Contour, Pendulum, Growth, Eclipse, Tiles and Reef" width="800">
 
 # Rill Synth
 
-**rill** /rɪl/ *noun* — a small stream.
+A generative synthesizer for the **M5Stack StickS3**. Seven voices compose delicate, evolving melodies with generative visuals. Tap for a new piece. Shake for a new visual. Sound and visuals run entirely on the device, without Wi-Fi or an account.
 
-A pocket-sized generative instrument for the **M5Stack StickS3**. Rill Synth composes delicate, evolving music and animated artwork entirely on the device, synthesizing every note as it plays. Tap for a new piece. Shake for a new visual.
+[Play Rill Synth](https://rillsound.com/synth) · [Build and install](#build-and-install)
 
-The first of the family, and originally just *Rill*. Its siblings are
-[Rill Drums](../rill-drums), [Rill Field](../rill-field) and
-[Rill Mallet](../rill-mallet), which plays the same kind of score on recorded
-instruments rather than synthesized ones. The M5Burner listing is still called Rill.
+**Rill family:** [Synth](https://github.com/bruceblay/rill-synth) · [Mallet](https://github.com/bruceblay/rill-mallet) · [World](https://github.com/bruceblay/rill-world) · [Drums](https://github.com/bruceblay/rill-drums) · [Rill Sound](https://rillsound.com)
 
-*Current renderer captures at the device’s 240 × 135 resolution. Top: Contour, Pendulum, Growth. Bottom: Eclipse, Tiles, Reef.*
-
-Rill is an experimental instrument. It needs no Wi-Fi, account, audio files, or cloud service. Its sound has been developed around the StickS3's small built-in speaker.
-
-## Play
-
-| Gesture | Action |
-| --- | --- |
-| Front button: tap | Generate a new musical piece, change the visual, and play |
-| Front button: hold for about 0.65 seconds | Fade sound out or in; the composition continues while quiet |
-| Side button: tap | Cycle volume and show the data view for four seconds |
-| Shake | Immediately switch to a different visual family and composition |
-
-The data view shows the voice, key, mode, generation number, tempo, delay rhythm, volume and battery estimate. New musical generations also select a new visual. Shake changes only the visual. The gesture uses two acceleration peaks and a short cooldown; a single tilt is not a shake.
-
-## What it makes
-
-- **Seven timbres:** Bongo, Bars, Wood, Bells, Wire, Halo and Synth. These combine resonant modes, plucked tones, FM and filtered oscillators; they are interpretations, not exact hardware or acoustic-instrument emulations.
-- **Generated phrases:** six contour tendencies guide newly composed melodies, variable phrase spans, interval preferences and rhythms. Ideas develop through changed endings, rhythmic rephrasing, recalled fragments and new descendants. Sparse answering parts follow their own timing. Twelve tonics, three modes, four harmonic behaviors and gradual changes in activity give each piece its own phrasing.
-- **Evolving echoes:** two tempo-related taps, smooth or stepped feedback, occasional stronger repeat passages and intermittent smearing.
-- **Six visual families:** a contour field, a drawing pendulum, branching growth, drifting discs, a grid lit note by note, and a reaction-diffusion reef. Each shake selects a different family. All six are drawn flat, in opaque shapes with hard edges on a coloured ground, and drift through slow parameter changes, so a family returned to minutes later is not the arrangement it was. The pendulum and growth run a life of their own: they arrive, fill the page, and the page is changed.
-
-New music fades between generations. Generations are not saved across restarts. Device-to-device ensemble sync is a [design proposal](SYNC-DESIGN.md), not an available feature.
-
-## The current visuals
+## Visuals
 
 These are captures from the current `visuals-study` renderer, driven by the Synth engine—not photographs of the device. [Development source](https://github.com/bruceblay/rill-synth/tree/visuals-study). Published firmware releases may show the earlier visual set.
 
@@ -64,6 +37,26 @@ note sounded. A note splits a living tip in growth, lights a column in tiles,
 pulses the body its pitch points at in eclipse, and seeds a colony in the
 reef. Contour keeps its slow evolution and gentle level response, without
 per-note shifts or pulses.
+
+## Play
+
+| Gesture | Action |
+| --- | --- |
+| Front button: tap | Generate a new musical piece, change the visual, and play |
+| Front button: hold for about 0.65 seconds | Fade sound out or in; the composition continues while quiet |
+| Side button: tap | Cycle volume and show the data view for four seconds |
+| Shake | Immediately switch to a different visual family and composition |
+
+The data view shows the voice, key, mode, generation number, tempo, delay rhythm, volume and battery estimate. New musical generations also select a new visual. Shake changes only the visual. The gesture uses two acceleration peaks and a short cooldown; a single tilt is not a shake.
+
+## Sound
+
+- **Seven timbres:** Bongo, Bars, Wood, Bells, Wire, Halo and Synth. These combine resonant modes, plucked tones, FM and filtered oscillators; they are interpretations, not exact hardware or acoustic-instrument emulations.
+- **Generated phrases:** six contour tendencies guide newly composed melodies, variable phrase spans, interval preferences and rhythms. Ideas develop through changed endings, rhythmic rephrasing, recalled fragments and new descendants. Sparse answering parts follow their own timing. Twelve tonics, three modes, four harmonic behaviors and gradual changes in activity give each piece its own phrasing.
+- **Evolving echoes:** two tempo-related taps, smooth or stepped feedback, occasional stronger repeat passages and intermittent smearing.
+- **Six visual families:** a contour field, a drawing pendulum, branching growth, drifting discs, a grid lit note by note, and a reaction-diffusion reef. Each shake selects a different family. All six are drawn flat, in opaque shapes with hard edges on a coloured ground, and drift through slow parameter changes, so a family returned to minutes later is not the arrangement it was. The pendulum and growth run a life of their own: they arrive, fill the page, and the page is changed.
+
+New music fades between generations. Generations are not saved across restarts. Device-to-device ensemble sync is a [design proposal](SYNC-DESIGN.md), not an available feature.
 
 ## Hardware
 
