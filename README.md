@@ -2,6 +2,8 @@
 
 # Rill Synth
 
+**rill** /rɪl/ *noun* — a small stream.
+
 A generative synthesizer for the **M5Stack StickS3**. Seven voices compose delicate, evolving melodies with generative visuals. Tap for a new piece. Shake for a new visual. Sound and visuals run entirely on the device, without Wi-Fi or an account.
 
 [Play Rill Synth](https://rillsound.com/synth) · [Build and install](#build-and-install)
