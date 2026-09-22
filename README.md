@@ -1,14 +1,24 @@
-<img src="docs/images/visuals-study.png" alt="Current Rill Synth visuals: Contour, Pendulum, Growth, Eclipse, Tiles and Reef" width="720">
+<img src="docs/images/visuals-study.png" alt="Current Rill Synth visuals: Contour, Pendulum, Growth, Eclipse, Tiles and Reef" width="800">
 
 # Rill Synth
 
-**rill** /rɪl/ *noun* — a small stream.
+A generative synthesizer for the **M5Stack StickS3**. Seven voices compose delicate, evolving melodies with generative visuals. Tap for a new piece. Shake for a new visual. Sound and visuals run entirely on the device, without Wi-Fi or an account.
 
-A pocket-sized generative instrument for the **M5Stack StickS3**. Rill composes delicate, evolving music and animated artwork entirely on the device. Tap for a new piece. Shake for a new visual.
+[Play Rill Synth](https://rillsound.com/synth) · [Build and install](#build-and-install)
 
-*Current renderer captures at the device’s 240 × 135 resolution. Top: Contour, Pendulum, Growth. Bottom: Eclipse, Tiles, Reef.*
+**Rill family:** [Synth](https://github.com/bruceblay/rill-synth) · [Mallet](https://github.com/bruceblay/rill-mallet) · [World](https://github.com/bruceblay/rill-world) · [Drums](https://github.com/bruceblay/rill-drums) · [Rill Sound](https://rillsound.com)
 
-Rill is an experimental instrument. It needs no Wi-Fi, account, audio files, or cloud service. Its sound has been developed around the StickS3's small built-in speaker.
+## Visuals
+
+These are captures from the current `visuals-study` renderer, driven by the Synth engine—not photographs of the device. [Development source](https://github.com/bruceblay/rill-synth/tree/visuals-study). Published firmware releases may show the earlier visual set.
+
+| Contour | Pendulum |
+| --- | --- |
+| ![Contour](docs/images/current-contour.png) | ![Pendulum](docs/images/current-pendulum.png) |
+| **Growth** | **Eclipse** |
+| ![Growth](docs/images/current-growth.png) | ![Eclipse](docs/images/current-eclipse.png) |
+| **Tiles** | **Reef** |
+| ![Tiles](docs/images/current-tiles.png) | ![Reef](docs/images/current-reef.png) |
 
 ## Play
 
@@ -21,26 +31,14 @@ Rill is an experimental instrument. It needs no Wi-Fi, account, audio files, or 
 
 The data view shows the voice, key, mode, generation number, tempo, delay rhythm, volume and battery estimate. New musical generations also select a new visual. Shake changes only the visual. The gesture uses two acceleration peaks and a short cooldown; a single tilt is not a shake.
 
-## What it makes
+## Sound
 
 - **Seven timbres:** Bongo, Bars, Wood, Bells, Wire, Halo and Synth. These combine resonant modes, plucked tones, FM and filtered oscillators; they are interpretations, not exact hardware or acoustic-instrument emulations.
 - **Generated phrases:** six contour tendencies guide newly composed melodies, variable phrase spans, interval preferences and rhythms. Ideas develop through changed endings, rhythmic rephrasing, recalled fragments and new descendants. Sparse answering parts follow their own timing. Twelve tonics, three modes, four harmonic behaviors and gradual changes in activity give each piece its own phrasing.
 - **Evolving echoes:** two tempo-related taps, smooth or stepped feedback, occasional stronger repeat passages and intermittent smearing.
-- **Visuals:** the current development set is shown below. This branch’s firmware and existing releases retain the earlier six-family renderer.
+- **Visuals:** the current development set is shown above. This branch’s firmware and existing releases retain the earlier six-family renderer.
 
 New music fades between generations. Generations are not saved across restarts. Device-to-device ensemble sync is a [design proposal](SYNC-DESIGN.md), not an available feature.
-
-## The current visuals
-
-These are captures from the current `visuals-study` renderer, driven by the Synth engine—not photographs of the device. [Development source](https://github.com/bruceblay/rill-synth/tree/visuals-study). Published firmware releases may show the earlier visual set.
-
-| Contour | Pendulum |
-| --- | --- |
-| ![Contour](docs/images/current-contour.png) | ![Pendulum](docs/images/current-pendulum.png) |
-| **Growth** | **Eclipse** |
-| ![Growth](docs/images/current-growth.png) | ![Eclipse](docs/images/current-eclipse.png) |
-| **Tiles** | **Reef** |
-| ![Tiles](docs/images/current-tiles.png) | ![Reef](docs/images/current-reef.png) |
 
 ## Hardware
 
