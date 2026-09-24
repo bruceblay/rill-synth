@@ -24,6 +24,9 @@ static std::atomic<uint32_t> struckNote{0}, struckWeight{600};
 // atomics the same way every other request is.
 static std::atomic<uint32_t> ensembleTempo{0};
 static std::atomic<int32_t> gridTrim{0};
+// A key offered by the ensemble, and the epoch it came with so the same
+// offer is only handed over once.
+static std::atomic<uint32_t> ensembleHarmony{0};
 static std::atomic<uint32_t> worstRenderUs{0}, queueErrors{0};
 static uint8_t volume = 165;
 
@@ -34,6 +37,8 @@ void audioTask(void*) {
     engine.setPlaying(playing.load());
     if (uint32_t bpm = ensembleTempo.exchange(0)) engine.followTempo(bpm);
     if (int32_t trim = gridTrim.exchange(0)) engine.trimGrid(trim);
+    if (uint32_t harmony = ensembleHarmony.exchange(0))
+      engine.adoptHarmony((harmony >> 8) & 15, harmony & 3);
     uint32_t start = micros();
     engine.render(buffers[index], 512);
     uint32_t elapsed = micros() - start;
@@ -107,7 +112,7 @@ void setup() {
     M5.Display.setTextSize(2); M5.Display.setCursor(16, 62); M5.Display.print("audio error");
     return;
   }
-  if (!radio::begin(engine.bpm()))
+  if (!radio::begin(engine.bpm(), true))
     Serial.println("ensemble radio unavailable; playing alone");
   if (xTaskCreatePinnedToCore(motionTask, "garden-motion", 4096, nullptr, 1, nullptr, 0) != pdPASS)
     Serial.println("Motion task unavailable");
@@ -127,6 +132,14 @@ void serviceEnsemble() {
   if (now - lastTrim < 120000) return;
   lastTrim = now;
   ensembleTempo.store(radio::tempo());
+  // Only when the offer is new, and never our own: proposing a key and then
+  // adopting it back would restart the phrase for nothing.
+  static uint32_t lastEpoch = 0;
+  uint32_t epoch = radio::harmonyEpoch();
+  if (epoch && epoch != lastEpoch) {
+    lastEpoch = epoch;
+    ensembleHarmony.store(0x10000u | (radio::harmonyTonic() << 8) | radio::harmonyMode());
+  }
   int64_t untilBar = 0, barMicros = 0;
   radio::barWindow(now, 4, untilBar, barMicros);
   if (barMicros <= 0) return;
@@ -161,6 +174,9 @@ void loop() {
   }
   static uint32_t frameAt = 0;
   const bool newVisual = repaintRequested.exchange(false);
+  // A new piece here is an offer to the room: whoever was tapped last leads
+  // the key.
+  if (newMusic) radio::proposeHarmony(engine.keyRoot(), engine.keyMode());
   if (newMusic || newVisual) { painting.regenerate(); infoVisible=false; frameAt=now-83; }
   if (infoVisible && uint32_t(now - infoAt) >= 4000) infoVisible = false;
   static bool wasInfoVisible = false;

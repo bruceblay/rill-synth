@@ -40,7 +40,7 @@ inline uint32_t deviceId() {
   return (uint32_t(mac[2]) << 24) | (uint32_t(mac[3]) << 16) | (uint32_t(mac[4]) << 8) | mac[5];
 }
 
-inline bool begin(unsigned tempo) {
+inline bool begin(unsigned tempo, bool pitched = false) {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   // A fixed channel: there is no access point to agree one with.
@@ -54,6 +54,7 @@ inline bool begin(unsigned tempo) {
   if (esp_now_add_peer(&peer) != ESP_OK) return false;
   lock_ = xSemaphoreCreateMutex();
   clock_.begin(deviceId(), esp_timer_get_time(), tempo);
+  clock_.setPitched(pitched);
   up_ = true;
   return true;
 }
@@ -64,6 +65,15 @@ inline unsigned tempo() { return clock_.tempo(); }
 inline uint32_t beatIndex() { return clock_.beatIndex(); }
 inline int64_t offset() { return clock_.offset(); }
 inline uint32_t heard() { return clock_.received(); }
+inline unsigned harmonyTonic() { return clock_.harmonyTonic(); }
+inline unsigned harmonyMode() { return clock_.harmonyMode(); }
+inline uint32_t harmonyEpoch() { return clock_.harmonyEpoch(); }
+// This device has generated a new piece and offers its key to the ensemble.
+inline void proposeHarmony(unsigned tonic, unsigned mode) {
+  if (!up_ || xSemaphoreTake(lock_, portMAX_DELAY) != pdTRUE) return;
+  clock_.proposeHarmony(tonic, mode);
+  xSemaphoreGive(lock_);
+}
 
 // Called often from the loop: take in whatever arrived, speak if conducting,
 // and hand back where the shared bar line sits.
@@ -78,7 +88,12 @@ inline void service(int64_t now, unsigned beatsPerBar) {
   }
   clock_.checkTimeout(now);
   clock_.due(now);
-  bool speak = clock_.conducting() && now - lastSend_ > 250000;
+  // A follower speaks too, at half the rate. It has no say in the clock --
+  // the receiver ignores role zero for that -- but a key proposed on a
+  // follower has to be able to reach the room, and the device in a player's
+  // hand is as likely to be a follower as not.
+  int64_t gap = clock_.conducting() ? 250000 : 500000;
+  bool speak = now - lastSend_ > gap;
   ensemble::Packet out{};
   if (speak) { out = clock_.outgoing(now); lastSend_ = now; }
   xSemaphoreGive(lock_);

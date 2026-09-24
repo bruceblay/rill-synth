@@ -58,6 +58,9 @@ class Engine {
   // louder than being a few milliseconds out of line.
   int32_t gridTrim = 0;
   uint64_t barStart = 0;
+  // A key offered by another device, taken up at the next phrase boundary.
+  // Mid-phrase it would contradict the notes still ringing from the old one.
+  int pendingTonic = -1, pendingMode = -1;
   unsigned phraseStep = 0, phraseCount = 0, phraseLength = 16;
   std::array<int8_t, 16> melody{};
   std::array<float, 16> accents{}, articulation{};
@@ -362,7 +365,17 @@ class Engine {
       nextTick = uint64_t(int64_t(nextTick) + bite);
       gridTrim -= bite;
     }
-    if(phraseStep==0) { barStart = clock; beginPhrase(); }
+    if(phraseStep==0) {
+      barStart = clock;
+      if(pendingTonic>=0) {
+        tonic=unsigned(pendingTonic); mode=unsigned(pendingMode);
+        pendingTonic=pendingMode=-1;
+        // The support voice is holding a pitch from the old key. Fold it into
+        // the new one rather than leaving it to grind against the phrase.
+        previousSupport=foldPitch(scaleNote(0,0),55,72);
+      }
+      beginPhrase();
+    }
     activityLevel+=0.25f*(activityTarget-activityLevel);
     unsigned elapsed=0;
     for(unsigned i=0;i<phraseStep;++i) elapsed+=rhythm[i];
@@ -473,6 +486,12 @@ class Engine {
     tickSamples = 2 * uint32_t(std::lround(float(rate) * 15 / tempo));
   }
   void trimGrid(int32_t samples) { gridTrim = samples; }
+  // Take up another device's key. Notes already sounding are left to ring:
+  // cutting them to change key is more audible than the change itself.
+  void adoptHarmony(unsigned newTonic, unsigned newMode) {
+    if(newTonic==tonic && newMode==mode) { pendingTonic=pendingMode=-1; return; }
+    pendingTonic=int(newTonic%12); pendingMode=int(newMode%3);
+  }
   // Where this engine sits in a bar of four beats. Its phrases are not four
   // bars long and are not meant to be; what an ensemble shares is the pulse
   // underneath them.

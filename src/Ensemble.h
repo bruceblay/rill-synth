@@ -40,6 +40,17 @@ struct Packet {
   uint32_t beatIndex;  // beats since the session began
   uint16_t tempo;      // beats per minute, for display and for a solo fallback
   uint16_t bars;       // beats to a bar, so joiners land on a bar line
+  // Harmony travels separately from the clock and on its own authority. The
+  // device that last proposed a key holds the highest epoch, so whoever was
+  // tapped most recently leads the ensemble into a new key -- which is what a
+  // player expects from the device in their hand, and is not something the
+  // clock's election should decide, since a drum machine has no key to offer.
+  uint32_t harmonyEpoch;
+  uint32_t harmonyFrom;  // proposer's id, to break a tie between equal epochs
+  uint8_t tonic;         // 0-11
+  uint8_t mode;          // 0-2
+  uint8_t pitched;       // 1 if this device has a key of its own to offer
+  uint8_t spare;
 } __attribute__((packed));
 
 class Clock {
@@ -100,12 +111,44 @@ class Clock {
     p.beatIndex = beatIndex_;
     p.tempo = uint16_t(tempo_);
     p.bars = bars_;
+    p.harmonyEpoch = epoch_;
+    p.harmonyFrom = harmonyFrom_;
+    p.tonic = tonic_;
+    p.mode = mode_;
+    p.pitched = pitched_ ? 1 : 0;
+    p.spare = 0;
     return p;
   }
 
   // A packet has arrived. `now` is the local clock at the moment of receipt.
+  // A device with a key of its own. One without -- a drum machine, a noise
+  // wash -- still carries harmony for the others, since relaying costs
+  // nothing and keeps a key alive across a device that cannot use it.
+  void setPitched(bool yes) { pitched_ = yes; }
+  // Called when this device generates a new piece. The epoch is what makes
+  // the most recent proposal win, whoever made it.
+  void proposeHarmony(unsigned tonic, unsigned mode) {
+    tonic_ = uint8_t(tonic % 12);
+    mode_ = uint8_t(mode % 3);
+    ++epoch_;
+    harmonyFrom_ = self_;
+  }
+  unsigned harmonyTonic() const { return tonic_; }
+  unsigned harmonyMode() const { return mode_; }
+  uint32_t harmonyEpoch() const { return epoch_; }
+
   void receive(const Packet& p, int64_t now) {
     if (p.magic != magic || p.version != version) return;
+    // Harmony rides on every packet, from a conductor or not: the key is not
+    // the clock's to decide.
+    bool newer = p.harmonyEpoch > epoch_ ||
+                 (p.harmonyEpoch == epoch_ && p.harmonyEpoch != 0 && p.harmonyFrom < harmonyFrom_);
+    if (newer && p.harmonyEpoch != 0) {
+      epoch_ = p.harmonyEpoch;
+      harmonyFrom_ = p.harmonyFrom;
+      tonic_ = p.tonic;
+      mode_ = p.mode;
+    }
     if (p.role != 1) return;
     // Lower id conducts. A device that was conducting steps down here, and
     // one that was following ignores anything from a higher id than the
@@ -206,6 +249,8 @@ class Clock {
   int64_t driftAnchorLocal_ = 0, driftAnchorOffset_ = 0;
   float drift_ = 0;
   uint32_t received_ = 0, missed_ = 0;
-  bool haveOffset_ = false;
+  uint32_t epoch_ = 0, harmonyFrom_ = 0;
+  uint8_t tonic_ = 0, mode_ = 0;
+  bool haveOffset_ = false, pitched_ = false;
 };
 }
