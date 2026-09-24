@@ -53,6 +53,11 @@ class Engine {
   }
   float touchVariation() { return 0.95f + 0.10f * performanceUnit(); }
   uint64_t clock = 0, nextTick = 0;
+  // Ensemble: a tempo to adopt and a phase error to work off, paid down a
+  // little at each tick. A jumped tick is a dropped or doubled note, which is
+  // louder than being a few milliseconds out of line.
+  int32_t gridTrim = 0;
+  uint64_t barStart = 0;
   unsigned phraseStep = 0, phraseCount = 0, phraseLength = 16;
   std::array<int8_t, 16> melody{};
   std::array<float, 16> accents{}, articulation{};
@@ -352,7 +357,12 @@ class Engine {
       }
     }
     if(clock<nextTick) return;
-    if(phraseStep==0) beginPhrase();
+    if(gridTrim) {
+      int32_t bite = std::max(int32_t(-96), std::min(int32_t(96), gridTrim));
+      nextTick = uint64_t(int64_t(nextTick) + bite);
+      gridTrim -= bite;
+    }
+    if(phraseStep==0) { barStart = clock; beginPhrase(); }
     activityLevel+=0.25f*(activityTarget-activityLevel);
     unsigned elapsed=0;
     for(unsigned i=0;i<phraseStep;++i) elapsed+=rhythm[i];
@@ -455,6 +465,23 @@ class Engine {
     for (unsigned i = 0; i < phraseLength; ++i) hash = (hash ^ uint8_t(melody[i])) * 16777619u;
     return hash;
   }
+  // Take a conductor's tempo, leaving phase alone: it arrives separately as
+  // a trim, and changing both at once makes neither observable.
+  void followTempo(unsigned bpm) {
+    if (!bpm || bpm == tempo) return;
+    tempo = std::max(40u, std::min(160u, bpm));
+    tickSamples = 2 * uint32_t(std::lround(float(rate) * 15 / tempo));
+  }
+  void trimGrid(int32_t samples) { gridTrim = samples; }
+  // Where this engine sits in a bar of four beats. Its phrases are not four
+  // bars long and are not meant to be; what an ensemble shares is the pulse
+  // underneath them.
+  uint32_t barSamples() const { return tickSamples * 2; }
+  uint32_t barPhase() const {
+    uint32_t span = barSamples();
+    return span ? uint32_t((clock - barStart) % span) : 0;
+  }
+
   void setPlaying(bool playing) { target = playing ? 1.0f : 0.0f; }
   uint64_t frames() const { return clock; }
   unsigned activeVoices() const { unsigned n = 0; for (auto& v : voices) n += v.duration != 0; return n; }

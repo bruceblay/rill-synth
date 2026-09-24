@@ -5,6 +5,7 @@
 #include <esp_system.h>
 #include "Garden.h"
 #include "Light.h"
+#include "Radio.h"
 #include "ShakeDetector.h"
 
 // Working title. Display and controls run separately from the audio producer.
@@ -19,6 +20,10 @@ static std::atomic<uint32_t> sceneInfo{0}, audioLevel{0};
 // Notes cross from the audio task to the display loop: the visuals answer
 // individual notes, which a level meter cannot tell apart.
 static std::atomic<uint32_t> struckNote{0}, struckWeight{600};
+// The ensemble's tempo and phase error, handed to the audio task through
+// atomics the same way every other request is.
+static std::atomic<uint32_t> ensembleTempo{0};
+static std::atomic<int32_t> gridTrim{0};
 static std::atomic<uint32_t> worstRenderUs{0}, queueErrors{0};
 static uint8_t volume = 165;
 
@@ -27,6 +32,8 @@ void audioTask(void*) {
   for (;;) {
     if (changeRequested.exchange(false)) engine.newVariation();
     engine.setPlaying(playing.load());
+    if (uint32_t bpm = ensembleTempo.exchange(0)) engine.followTempo(bpm);
+    if (int32_t trim = gridTrim.exchange(0)) engine.trimGrid(trim);
     uint32_t start = micros();
     engine.render(buffers[index], 512);
     uint32_t elapsed = micros() - start;
@@ -100,6 +107,8 @@ void setup() {
     M5.Display.setTextSize(2); M5.Display.setCursor(16, 62); M5.Display.print("audio error");
     return;
   }
+  if (!radio::begin(engine.bpm()))
+    Serial.println("ensemble radio unavailable; playing alone");
   if (xTaskCreatePinnedToCore(motionTask, "garden-motion", 4096, nullptr, 1, nullptr, 0) != pdPASS)
     Serial.println("Motion task unavailable");
   if (xTaskCreatePinnedToCore(audioTask, "garden-audio", 4096, nullptr, 3, nullptr, 1) != pdPASS) {
@@ -108,8 +117,35 @@ void setup() {
   }
 }
 
+// Keep the engine on the shared bar line, measured against the bar rather
+// than the beat so a device joining late lands where a bar starts.
+void serviceEnsemble() {
+  if (!radio::up()) return;
+  int64_t now = esp_timer_get_time();
+  radio::service(now, 4);
+  static int64_t lastTrim = 0;
+  if (now - lastTrim < 120000) return;
+  lastTrim = now;
+  ensembleTempo.store(radio::tempo());
+  int64_t untilBar = 0, barMicros = 0;
+  radio::barWindow(now, 4, untilBar, barMicros);
+  if (barMicros <= 0) return;
+  int64_t barSamples = int64_t(engine.barSamples());
+  if (barSamples <= 0) return;
+  int64_t want = barSamples - (untilBar * int64_t(garden::rate)) / 1000000;
+  while (want < 0) want += barSamples;
+  want %= barSamples;
+  int64_t error = want - int64_t(engine.barPhase());
+  error = ((error % barSamples) + barSamples) % barSamples;
+  if (error > barSamples / 2) error -= barSamples;
+  // A quarter of the error at a time, spread over several bars so the
+  // correction is never heard as a stumble.
+  gridTrim.store(int32_t(error / 4));
+}
+
 void loop() {
   M5.update();
+  serviceEnsemble();
   uint32_t now = millis();
   bool changed = false;
   if (M5.BtnA.wasClicked()) { changeRequested = true; playing = true; changed = true; }

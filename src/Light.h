@@ -84,7 +84,12 @@ class Painting {
   // Reef: one reaction-diffusion field at half resolution. Only one family
   // runs at a time and a shake reseeds whichever one arrives, so this is the
   // only large buffer any of them needs.
-  static constexpr unsigned reefW = 120, reefH = 68;
+  // The reaction runs at two fifths of the screen rather than a half. The
+  // radio stack needs the nine kilobytes that buys, and the pattern's feature
+  // size is set by the chemistry in cells, so the coral simply comes out a
+  // little broader.
+  static constexpr unsigned reefW = 96, reefH = 54;
+  static constexpr float reefScale = float(reefW) / float(width);
   std::array<int16_t, reefW * reefH> reefU{}, reefV{};
   int32_t feed = 150, kill = 266;
   float feedBase = 150, killBase = 266, feedRate = 0, killRate = 0, feedBias = 0;
@@ -743,13 +748,13 @@ class Painting {
     // cells directly leaves every coral head with a two-pixel staircase
     // around it, which is the one thing that would look computed.
     for (unsigned y = 0; y < height; ++y) {
-      float gy = float(y) * 0.5f;
+      float gy = float(y) * reefScale;
       unsigned y0 = std::min(reefH - 2, unsigned(gy));
       float fy = gy - float(y0);
       const int16_t* rowA = &reefV[y0 * reefW];
       const int16_t* rowB = rowA + reefW;
       for (unsigned x = 0; x < width; ++x) {
-        float gx = float(x) * 0.5f;
+        float gx = float(x) * reefScale;
         unsigned x0 = std::min(reefW - 2, unsigned(gx));
         float fx = gx - float(x0);
         float top = float(rowA[x0]) + (float(rowA[x0 + 1]) - float(rowA[x0])) * fx;
