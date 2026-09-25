@@ -40,7 +40,8 @@ inline uint32_t deviceId() {
   return (uint32_t(mac[2]) << 24) | (uint32_t(mac[3]) << 16) | (uint32_t(mac[4]) << 8) | mac[5];
 }
 
-inline bool begin(unsigned tempo, bool pitched = false) {
+// `defers`: keep the clock only when no other device will (World).
+inline bool begin(unsigned tempo, bool pitched = false, bool defers = false) {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   // A fixed channel: there is no access point to agree one with.
@@ -55,6 +56,7 @@ inline bool begin(unsigned tempo, bool pitched = false) {
   lock_ = xSemaphoreCreateMutex();
   clock_.begin(deviceId(), esp_timer_get_time(), tempo);
   clock_.setPitched(pitched);
+  clock_.setDefers(defers);
   up_ = true;
   return true;
 }
@@ -74,6 +76,20 @@ inline void proposeHarmony(unsigned tonic, unsigned mode) {
   clock_.proposeHarmony(tonic, mode);
   xSemaphoreGive(lock_);
 }
+
+// Slows the whole ensemble by a step, from the bar after next; past the
+// slowest it comes round to the fastest. Returns the tempo it asked for.
+constexpr unsigned slowestTempo = 52, fastestTempo = 100, tempoStep = 4;
+inline unsigned slower() {
+  if (!up_ || xSemaphoreTake(lock_, portMAX_DELAY) != pdTRUE) return 0;
+  const unsigned now = clock_.tempoAhead();
+  const unsigned next = now >= slowestTempo + tempoStep ? now - tempoStep : fastestTempo;
+  clock_.proposeTempo(next);
+  xSemaphoreGive(lock_);
+  return next;
+}
+// The tempo the ensemble is playing, or about to once a change lands.
+inline unsigned tempoAhead() { return up_ ? clock_.tempoAhead() : 0; }
 
 // Called often from the loop: take in whatever arrived, speak if conducting,
 // and hand back where the shared bar line sits.

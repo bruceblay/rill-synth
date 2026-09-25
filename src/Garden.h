@@ -512,8 +512,18 @@ class Engine {
   void followTempo(unsigned bpm) {
     following = bpm != 0;
     if (!bpm || bpm == tempo) return;
+    const int64_t oldStep = tickSamples / 2, oldBeat = oldStep * 4;
     tempo = std::max(40u, std::min(160u, bpm));
     tickSamples = 2 * uint32_t(std::lround(float(rate) * 15 / tempo));
+    // The ensemble changed tempo on a beat line, and this arrives within a
+    // beat of it, so the line just passed is that one. Re-time from it: the
+    // tick already scheduled at the old spacing moves to its place at the new
+    // one, and the beat starts there, so the engine never leaves the grid.
+    const int64_t since = ((int64_t(clock) - int64_t(barStart)) % oldBeat + oldBeat) % oldBeat;
+    const int64_t line = int64_t(clock) - since;
+    const int64_t ahead = (int64_t(nextTick) - line + oldStep / 2) / oldStep;
+    barStart = uint64_t(line);
+    nextTick = uint64_t(std::max<int64_t>(int64_t(clock), line + ahead * int64_t(tickSamples / 2)));
   }
   void trimGrid(int32_t samples) { gridTrim = samples; }
   // How long a new piece takes to begin after it is asked for: the old one

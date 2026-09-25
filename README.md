@@ -47,6 +47,7 @@ per-note shifts or pulses.
 | Front button: tap | Generate a new musical piece, change the visual, and play |
 | Front button: hold for about 0.65 seconds | Fade sound out or in; the composition continues while quiet |
 | Side button: tap | Cycle volume and show the data view for four seconds |
+| Side button: hold | Slow the whole ensemble by 4 BPM, starting on the bar after next; below 52 it comes round to 100 |
 | Shake | Immediately switch to a different visual family and composition |
 
 The data view shows the voice, key, mode, generation number, tempo, delay rhythm, volume and battery estimate. New musical generations also select a new visual. Shake changes only the visual. The gesture uses two acceleration peaks and a short cooldown; a single tilt is not a shake.
