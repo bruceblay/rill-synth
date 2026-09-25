@@ -1,6 +1,6 @@
-# Ensemble sync — prototype proposal
+# Ensemble sync
 
-Status: design only, not implemented in the current firmware. Start with two physical devices.
+Status: implemented in Rill Synth, Mallet, Drums and World (`src/Ensemble.h` and `src/Radio.h` in each), after the clock was first measured on two devices in Rill Sync. This was the original proposal; where the firmware differs, the firmware is right.
 
 Devices need a compatible radio and firmware implementing the same protocol; ESP32 branding alone does not provide musical interoperability. ESP-NOW is the proposed transport. Different synthesizers could participate if they understand the shared musical messages. Transport support must be checked for each chip and SDK.
 
