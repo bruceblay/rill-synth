@@ -10,15 +10,19 @@
 // a quarter of the difference. Run that loop against a grid well off this
 // engine's own, and the engine has to settle onto it and stay there. If
 // barPhase() does not move with the trims, the same error is paid again and
-// again and the trims never stop.
+// again and the trims never stop. Taps are part of it: a new piece has to
+// begin on the grid it was on, not start one of its own.
 int main() {
   for (uint32_t seed : {1u, 7u, 0x6c696665u}) {
     garden::Engine engine(seed);
+    engine.followTempo(engine.bpm());  // as the ensemble does, every 120 ms
+    const unsigned first = engine.variation();
     const int64_t span = engine.barSamples(), check = garden::rate * 120 / 1000;
     const int64_t origin = span / 3;  // where the shared beat falls
     int64_t trimmed = 0, worst = 0;
     for (int64_t i = 1; i <= int64_t(garden::rate) * 60; ++i) {
       engine.sample();
+      if (i > int64_t(garden::rate) * 15 && i % (garden::rate * 3) == 0) engine.newVariation();
       if (i % check) continue;
       int64_t want = ((int64_t(engine.frames()) - origin) % span + span) % span;
       int64_t error = ((want - int64_t(engine.barPhase())) % span + span) % span;
@@ -29,6 +33,7 @@ int main() {
     // Settled: within a couple of milliseconds, and the trims have stopped.
     assert(worst < garden::rate * 2 / 1000);
     assert(trimmed < span / 4);
-    std::cout << "seed " << seed << ": settles on the shared beat, worst " << worst << " samples after 15 s\n";
+    assert(engine.variation() > first + 5);  // the taps did land
+    std::cout << "seed " << seed << ": settles on the shared beat, worst " << worst << " samples after 15 s, through taps\n";
   }
 }

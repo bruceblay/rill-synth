@@ -58,7 +58,7 @@ The data view shows the voice, key, mode, generation number, tempo, delay rhythm
 - **Evolving echoes:** two tempo-related taps, smooth or stepped feedback, occasional stronger repeat passages and intermittent smearing.
 - **Six visual families:** a contour field, a drawing pendulum, branching growth, drifting discs, a grid lit note by note, and a reaction-diffusion reef. Each shake selects a different family. All six are drawn flat, in opaque shapes with hard edges on a coloured ground, and drift through slow parameter changes, so a family returned to minutes later is not the arrangement it was. The pendulum and growth run a life of their own: they arrive, fill the page, and the page is changed.
 
-New music fades between generations. Generations are not saved across restarts. Near other Rill devices (Synth, Mallet, Drums or World) it joins an ensemble over ESP-NOW with no setup: the lowest device id keeps the clock, every device plays on the shared tempo and bar line, and a new piece on a Synth or Mallet proposes its key to the others. See [how it works](SYNC-DESIGN.md).
+New music fades between generations. Generations are not saved across restarts. Near other Rill devices (Synth, Mallet, Drums or World) it joins an ensemble over ESP-NOW with no setup: the lowest device id keeps the clock, every device plays on the shared tempo and bar line, and a new piece on a Synth or Mallet proposes its key to the others. In an ensemble a tap waits for the next shared bar, so a new piece comes in on the downbeat without leaving the beat. See [how it works](SYNC-DESIGN.md).
 
 ## Hardware
 

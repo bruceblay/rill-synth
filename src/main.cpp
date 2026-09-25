@@ -156,12 +156,28 @@ void serviceEnsemble() {
   gridTrim.store(int32_t(error / 4));
 }
 
+// A tap in an ensemble waits for the room. The old piece fades out for
+// changeFrames() and the new one starts on the next beat after that, so the
+// request goes in half a beat earlier still, and that next beat is the shared
+// bar line. Alone, the change is immediate.
+static int64_t changeAt = 0;
+void requestChange() {
+  int64_t now = esp_timer_get_time(), untilBar = 0, barMicros = 0;
+  if (radio::up() && radio::heard()) radio::barWindow(now, 4, untilBar, barMicros);
+  if (barMicros <= 0) { changeRequested = true; return; }
+  const int64_t fade = int64_t(garden::Engine::changeFrames()) * 1000000 / garden::rate;
+  int64_t wait = untilBar - fade - barMicros / 8;
+  while (wait < 0) wait += barMicros;
+  changeAt = now + wait;
+}
+
 void loop() {
   M5.update();
   serviceEnsemble();
+  if (changeAt && esp_timer_get_time() >= changeAt) { changeAt = 0; changeRequested = true; }
   uint32_t now = millis();
   bool changed = false;
-  if (M5.BtnA.wasClicked()) { changeRequested = true; playing = true; changed = true; }
+  if (M5.BtnA.wasClicked()) { requestChange(); playing = true; changed = true; }
   if (M5.BtnA.wasHold()) { playing = !playing; changed = true; }
   static uint32_t lastScene = 0;
   uint32_t currentScene = sceneInfo.load();

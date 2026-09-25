@@ -57,6 +57,8 @@ class Engine {
   // little at each tick. A jumped tick is a dropped or doubled note, which is
   // louder than being a few milliseconds out of line.
   int32_t gridTrim = 0;
+  // Set once a conductor's tempo arrives: from then on the beat is the room's.
+  bool following = false;
   uint64_t barStart = 0;
   // A key offered by another device, taken up at the next phrase boundary.
   // Mid-phrase it would contradict the notes still ringing from the old one.
@@ -163,14 +165,25 @@ class Engine {
     character = generation ? (character + 1 + random() % 5) % 6 : random() % 6;
     intervalStyle = random() % 3;
     ++generation;
-    tempo = 62 + random() % 35;
-    tickSamples = 2 * uint32_t(std::lround(float(rate) * 15 / tempo));
+    const unsigned chosen = 62 + random() % 35;
+    // In an ensemble the tempo is the room's: a new piece keeps it.
+    if (!following) {
+      tempo = chosen;
+      tickSamples = 2 * uint32_t(std::lround(float(rate) * 15 / tempo));
+    }
     phraseLength = 7 + random() % 10;
     phraseStep = phraseCount = 0;
     // Performance has its own stream, preserving the generated score and effects.
     performanceRng = (rng ^ 0xa341316cu) | 1u;
     phraseLevel = 1;
-    nextTick = clock;
+    // Following, the new piece begins on the next beat of the grid already
+    // there, so it never leaves the shared beat; alone, it starts now.
+    if (following) {
+      const uint32_t into = barPhase();
+      nextTick = into ? clock + (barSamples() - into) : clock;
+    } else {
+      nextTick = clock;
+    }
     // Each family has its own authored envelope and spectral bounds.
     static const float durations[][2] = {{0.65f,1.15f},{1.0f,1.8f},{0.7f,1.2f},{1.6f,2.6f},{0.9f,1.6f},{1.5f,2.3f},{0.9f,1.6f}};
     static const float attacks[][2] = {{0.004f,0.009f},{0.004f,0.010f},{0.004f,0.010f},{0.009f,0.018f},{0.006f,0.016f},{0.018f,0.042f},{0.009f,0.020f}};
@@ -250,7 +263,10 @@ class Engine {
   }
   void composeRhythm() {
     // Distribute a chosen span among events; no repeated four-step rhythm cells.
-    phraseTicks=std::max(phraseLength+2,phraseBeats*4);
+    // Whole beats, so each phrase ends on the beat and the next begins on it:
+    // a phrase of 17 or 18 sixteenths used to start every later one off the
+    // shared beat, and the ensemble had to pull it back each time.
+    phraseTicks=(std::max(phraseLength+2,phraseBeats*4)+3)/4*4;
     rhythm.fill(1);
     for(unsigned remaining=phraseTicks-phraseLength;remaining;--remaining) {
       unsigned i=scoreRandom()%phraseLength;
@@ -494,11 +510,15 @@ class Engine {
   // Take a conductor's tempo, leaving phase alone: it arrives separately as
   // a trim, and changing both at once makes neither observable.
   void followTempo(unsigned bpm) {
+    following = bpm != 0;
     if (!bpm || bpm == tempo) return;
     tempo = std::max(40u, std::min(160u, bpm));
     tickSamples = 2 * uint32_t(std::lround(float(rate) * 15 / tempo));
   }
   void trimGrid(int32_t samples) { gridTrim = samples; }
+  // How long a new piece takes to begin after it is asked for: the old one
+  // fades out first. The firmware times a tap so the new piece lands on a bar.
+  static constexpr uint32_t changeFrames() { return fadeFrames; }
   // Take up another device's key. Notes already sounding are left to ring:
   // cutting them to change key is more audible than the change itself.
   void adoptHarmony(unsigned newTonic, unsigned newMode) {
