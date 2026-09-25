@@ -12,7 +12,7 @@ A generative synthesizer for the **M5Stack StickS3**. Seven voices compose delic
 
 ## Visuals
 
-These are captures from the current `visuals-study` renderer, driven by the Synth engine—not photographs of the device. [Development source](https://github.com/bruceblay/rill-synth/tree/visuals-study). Published firmware releases may show the earlier visual set.
+These are captures from the current renderer, driven by the Synth engine, not photographs of the device. Firmware releases published before these visuals show the earlier set.
 
 | Contour | Pendulum |
 | --- | --- |
