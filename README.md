@@ -6,7 +6,7 @@
 
 A generative synthesizer for the **M5Stack StickS3**. Seven voices compose delicate, evolving melodies with generative visuals. Tap for a new piece. Shake for a new visual. Sound and visuals run entirely on the device, without Wi-Fi or an account.
 
-[Play Rill Synth](https://rillsound.com/synth) · [Build and install](#build-and-install)
+[Play Rill Synth](https://rillsound.com/synth) · [Get on M5Burner](https://burner.m5stack.com/firmware/2102134892988723201) · [Build and install](#build-and-install)
 
 **Rill family:** [Synth](https://github.com/bruceblay/rill-synth) · [Mallet](https://github.com/bruceblay/rill-mallet) · [World](https://github.com/bruceblay/rill-world) · [Drums](https://github.com/bruceblay/rill-drums) · [Rill Sound](https://rillsound.com)
 
