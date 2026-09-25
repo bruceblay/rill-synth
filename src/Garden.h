@@ -360,9 +360,17 @@ class Engine {
       }
     }
     if(clock<nextTick) return;
+    int32_t bite = 0;
     if(gridTrim) {
-      int32_t bite = std::max(int32_t(-96), std::min(int32_t(96), gridTrim));
-      nextTick = uint64_t(int64_t(nextTick) + bite);
+      // Up to an eighth of a tick at a time: a device joining half a beat off
+      // lands on the shared beat in a few seconds rather than a minute, and
+      // once there the trims are a few samples.
+      const int32_t most = int32_t(tickSamples / 8);
+      bite = std::max(-most, std::min(most, gridTrim));
+      // A trim moves the engine forward through its bar, as it does in World:
+      // the ticks come sooner. Moving them later instead pushed every device
+      // away from the shared beat until it sat half a beat off it.
+      nextTick = uint64_t(int64_t(nextTick) - bite);
       gridTrim -= bite;
     }
     if(phraseStep==0) {
@@ -376,6 +384,11 @@ class Engine {
       }
       beginPhrase();
     }
+    // The trim moves every tick after this one, so it moves the bar they are
+    // counted in too. Left behind, barPhase() went on reporting the error the
+    // trim had already paid off, the ensemble paid it again every 120 ms, and
+    // the notes slid off the shared beat until the next phrase began.
+    barStart = uint64_t(int64_t(barStart) - bite);
     activityLevel+=0.25f*(activityTarget-activityLevel);
     unsigned elapsed=0;
     for(unsigned i=0;i<phraseStep;++i) elapsed+=rhythm[i];
@@ -498,7 +511,9 @@ class Engine {
   uint32_t barSamples() const { return tickSamples * 2; }
   uint32_t barPhase() const {
     uint32_t span = barSamples();
-    return span ? uint32_t((clock - barStart) % span) : 0;
+    if (!span) return 0;
+    const int64_t into = (int64_t(clock) - int64_t(barStart)) % int64_t(span);
+    return uint32_t(into < 0 ? into + span : into);
   }
 
   void setPlaying(bool playing) { target = playing ? 1.0f : 0.0f; }
