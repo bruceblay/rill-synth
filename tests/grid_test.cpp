@@ -38,8 +38,8 @@ static void checkTempoChange() {
       if (error > span / 2) error -= span;
       engine.trimGrid(int32_t(error / 4));
       if (switchAt >= 0) {
-        if (i < switchAt + int64_t(garden::rate) * 8) during = std::max(during, std::llabs(error));
-        else worst = std::max(worst, std::llabs(error));
+        if (i < switchAt + int64_t(garden::rate) * 8) during = std::max<int64_t>(during, std::llabs(error));
+        else worst = std::max<int64_t>(worst, std::llabs(error));
       }
     }
     assert(engine.bpm() == slower);
@@ -66,7 +66,7 @@ int main() {
       int64_t error = ((want - int64_t(engine.barPhase())) % span + span) % span;
       if (error > span / 2) error -= span;
       engine.trimGrid(int32_t(error / 4));
-      if (i > int64_t(garden::rate) * 15) { trimmed += std::llabs(error / 4); worst = std::max(worst, std::llabs(error)); }
+      if (i > int64_t(garden::rate) * 15) { trimmed += std::llabs(error / 4); worst = std::max<int64_t>(worst, std::llabs(error)); }
     }
     // Settled: within a couple of milliseconds, and the trims have stopped.
     assert(worst < garden::rate * 2 / 1000);
