@@ -2,13 +2,13 @@
 
 # Rill Synth
 
-**rill** /rɪl/ *noun* — a small stream or a tiny, shallow channel cut into soil by running water.
+**rill** /rɪl/ *noun*: a small stream or a tiny, shallow channel cut into soil by running water.
 
 A generative synthesizer for the **M5Stack StickS3**. Seven voices compose delicate, evolving melodies with generative visuals. Tap for a new piece. Shake for a new visual. Sound and visuals run entirely on the device, without Wi-Fi or an account.
 
 [Play Rill Synth](https://rillsound.com/synth) · [Get on M5Burner](https://burner.m5stack.com/firmware/2102134892988723201) · [Build and install](#build-and-install)
 
-**Rill family:** [Synth](https://github.com/bruceblay/rill-synth) · [Mallet](https://github.com/bruceblay/rill-mallet) · [World](https://github.com/bruceblay/rill-world) · [Drums](https://github.com/bruceblay/rill-drums) · [Rill Sound](https://rillsound.com)
+**Rill family:** [Voice](https://github.com/bruceblay/rill-voice) · [Synth](https://github.com/bruceblay/rill-synth) · [Mallet](https://github.com/bruceblay/rill-mallet) · [World](https://github.com/bruceblay/rill-world) · [Drums](https://github.com/bruceblay/rill-drums) · [Rill Sound](https://rillsound.com)
 
 ## Visuals
 
@@ -22,12 +22,12 @@ These are captures from the current renderer, driven by the Synth engine, not ph
 | **Tiles** | **Reef** |
 | ![Tiles](docs/images/current-tiles.png) | ![Reef](docs/images/current-reef.png) |
 
-- **Contour** — two travelling wave sources and a drifting plane wave sum into a field, and the field is quantised into flat areas of ink and tint, the way a printed contour map is.
-- **Pendulum** — a harmonograph traces a figure slowly enough to follow, in long passes of flat colour, then the page is changed and a different figure begins.
-- **Growth** — branches cross the page from one side, splitting as they go and stopping where they meet ground already taken.
-- **Eclipse** — flat discs and punched rings drift past each other, and the composition is whatever their overlaps happen to make.
-- **Tiles** — a grid of flat squares where each note lights its own column, fading back so the grid settles when the music stops.
-- **Reef** — a Gray-Scott reaction, the chemistry behind both brain coral and fingerprints, run at half resolution and read at full so its edges stay organic.
+- **Contour**: two travelling wave sources and a drifting plane wave sum into a field, and the field is quantised into flat areas of ink and tint, the way a printed contour map is.
+- **Pendulum**: a harmonograph traces a figure slowly enough to follow, in long passes of flat colour, then the page is changed and a different figure begins.
+- **Growth**: branches cross the page from one side, splitting as they go and stopping where they meet ground already taken.
+- **Eclipse**: flat discs and punched rings drift past each other, and the composition is whatever their overlaps happen to make.
+- **Tiles**: a grid of flat squares where each note lights its own column, fading back so the grid settles when the music stops.
+- **Reef**: a Gray-Scott reaction, the chemistry behind both brain coral and fingerprints, run at half resolution and read at full so its edges stay organic.
 
 Everything is opaque shapes with hard edges: filled spans, discs, rings punched back to the ground, single-pixel lines. There is no additive blending, dithering or soft falloff anywhere in the renderer. The palettes are daylight ones, a coloured ground with three inks that sit on it, in the register of a faded photograph rather than of emitted light.
 
@@ -59,7 +59,7 @@ The data view shows the voice, key, mode, generation number, tempo, delay rhythm
 - **Evolving echoes:** two tempo-related taps, smooth or stepped feedback, occasional stronger repeat passages and intermittent smearing.
 - **Six visual families:** a contour field, a drawing pendulum, branching growth, drifting discs, a grid lit note by note, and a reaction-diffusion reef. Each shake selects a different family. All six are drawn flat, in opaque shapes with hard edges on a coloured ground, and drift through slow parameter changes, so a family returned to minutes later is not the arrangement it was. The pendulum and growth run a life of their own: they arrive, fill the page, and the page is changed.
 
-New music fades between generations. Generations are not saved across restarts. Near other Rill devices (Synth, Mallet, Drums or World) it joins an ensemble over ESP-NOW with no setup: the lowest device id keeps the clock, every device plays on the shared tempo and bar line, and a new piece on a Synth or Mallet proposes its key to the others. In an ensemble a tap waits for the next shared bar, so a new piece comes in on the downbeat without leaving the beat. See [how it works](SYNC-DESIGN.md).
+New music fades between generations. Generations are not saved across restarts. Near other Rill devices (Voice, Synth, Mallet, Drums or World) it joins an ensemble over ESP-NOW with no setup: the lowest device id keeps the clock, every device plays on the shared tempo and bar line, and a new piece on a Voice, Synth or Mallet proposes its key to the others. In an ensemble a tap waits for the next shared bar, so a new piece comes in on the downbeat without leaving the beat. See [how it works](SYNC-DESIGN.md).
 
 ## Hardware
 
@@ -115,13 +115,13 @@ Tests cover thirty simulated minutes of music, bounded output, key/register cons
 
 ## Project layout
 
-- `src/Garden.h` — synthesis, score and effects
-- `src/Light.h` — procedural visual families
-- `src/LightClassic.h` — the archived original six families, unused by the firmware and held to their historical baseline by the tests
-- `src/main.cpp` — audio, display, buttons and motion tasks
-- `src/ShakeDetector.h` — gesture recognition
-- `tools/` — portable tests, auditions, previews and flashing
-- `tests/` — host verification, with required historical baselines in `fixtures/`
+- `src/Garden.h`: synthesis, score and effects
+- `src/Light.h`: procedural visual families
+- `src/LightClassic.h`: the archived original six families, unused by the firmware and held to their historical baseline by the tests
+- `src/main.cpp`: audio, display, buttons and motion tasks
+- `src/ShakeDetector.h`: gesture recognition
+- `tools/`: portable tests, auditions, previews and flashing
+- `tests/`: host verification, with required historical baselines in `fixtures/`
 
 See [publishing notes](docs/PUBLISHING.md), [changes](CHANGELOG.md), and [contributing](CONTRIBUTING.md).
 
