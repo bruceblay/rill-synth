@@ -4,7 +4,7 @@
 
 **rill** /rɪl/ *noun*: a small stream or a tiny, shallow channel cut into soil by running water.
 
-A generative synthesizer for the **M5Stack StickS3**. Seven voices compose delicate, evolving melodies with generative visuals. Tap for a new piece. Shake for a new visual. Sound and visuals run entirely on the device, without Wi-Fi or an account.
+A generative synthesizer for the **M5Stack StickS3**. Seven voices compose delicate, evolving melodies with generative visuals. Tap for a new piece. Shake for a new visual. Sound and visuals run entirely on the device, without an internet connection or an account.
 
 [Play Rill Synth](https://rillsound.com/synth) · [Get on M5Burner](https://burner.m5stack.com/firmware/2102134892988723201) · [Build and install](#build-and-install)
 
@@ -48,7 +48,7 @@ per-note shifts or pulses.
 | Front button: hold for about 0.65 seconds | Fade sound out or in; the composition continues while quiet |
 | Side button: tap | Cycle volume and show the data view for four seconds |
 | Side button: hold | Slow the whole ensemble by 4 BPM, starting on the bar after next; below 52 it comes round to 100 |
-| Shake | Immediately switch to a different visual family and composition |
+| Shake | Select a new visual without changing the music |
 
 The data view shows the voice, key, mode, generation number, tempo, delay rhythm, volume and battery estimate. New musical generations also select a new visual. Shake changes only the visual. The gesture uses two acceleration peaks and a short cooldown; a single tilt is not a shake.
 

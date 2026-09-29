@@ -1,6 +1,12 @@
 # Changes
 
-## Unreleased — visual study
+## 0.4.0 (2026-09-29)
+
+- Plays with other Rill devices nearby over ESP-NOW, with no setup. The lowest device id keeps the clock, and every device plays on the shared tempo and bar line.
+- A new piece proposes its key to the other devices, and in an ensemble a tap waits for the next shared bar.
+- Holding the side button slows the whole ensemble by 4 BPM from the bar after next. Below 52 it comes round to 100.
+
+## 0.3.0 (2026-09-21): visual study
 
 - Replaced the six visual families. Weave, contour, strata, pendulum, growth and eclipse, all drawn flat: opaque shapes with hard edges, no additive blending, no dithering, no soft falloff. This is Rill Drums' drawing language.
 - Replaced the palettes with six daylight ones, each a coloured ground and three inks that sit on it. Levels and bands are an ink or that ink let down toward the ground, never stepped toward black.
@@ -8,13 +14,13 @@
 - Raised the display brightness from 55 to 100.
 - Not yet judged on hardware beyond a first look.
 
-## 0.2.0 — 2026-09-12
+## 0.2.0 (2026-09-12)
 
 - Replaced fixed eight-step motifs and rhythm cells with generated phrases and cumulative development.
 - Added independently timed sparse answers, changing activity, and sustained, pendulum, wandering or pedal harmony with nearby supporting chord tones.
 - Kept the existing synthesis voices and controls.
 
-## 0.1.0 — 2026-09-12
+## 0.1.0 (2026-09-12)
 
 - Extended the volume cycle through 76%, 88% and 100%, keeping the 64% startup level.
 - Simplified the data-view title to RILL.
