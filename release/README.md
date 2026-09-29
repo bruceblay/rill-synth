@@ -1,31 +1,11 @@
-# Rill 0.2.0
+# Rill Synth 0.4.0
 
-## Changes in this version
+Current StickS3 firmware: **0.4.0**, submitted to the canonical [rill-synth M5Burner listing](https://burner.m5stack.com/firmware/2102134892988723201) on September 29, 2026. It is awaiting review; 0.3.0 remains the public store version.
 
-- Generated melodic contours, phrase lengths and rhythms replace the fixed motif templates.
-- Phrases develop through changed endings, new rhythms, recalled fragments and new descendants.
-- Sparse answering parts have independent timing; activity shifts between flowing and quieter passages.
-- Sustained, pendulum, wandering and pedal harmonic behaviors use nearby supporting chord tones.
-- Existing synth tones, visuals, controls and full volume range are preserved.
+This release adds ESP-NOW ensemble timing and key sharing with the other Rill instruments. New pieces enter on a shared bar line. Holding the side button slows the ensemble by 4 BPM, wrapping from below 52 to 100 BPM. Seven voices accompany the current six visuals: Contour, Pendulum, Growth, Eclipse, Tiles and Reef.
 
-Let a generation play for several minutes to hear it develop.
+The factory image is `rill-synth-0.4.0-factory.bin`, 8 MB, flashed at **0x0**. Installation replaces existing firmware and settings. The M5Burner cover is the web app's `social/synth-v4.png`.
 
-## Installation
+See the [current family release record](https://github.com/bruceblay/rill-sound/blob/main/release/m5burner/README.md), [source manifest](https://github.com/bruceblay/rill-sound/blob/main/release/m5burner/rill-synth-manifest.json), and [build instructions](../README.md#build-and-install). The previous 0.2.0 release notes and source archive details are preserved in [README-0.2.0.md](README-0.2.0.md).
 
-For M5Stack StickS3 only. Flash `rill-0.2.0-factory.bin` at **0x0**. The full 8 MB image includes the bootloader, partition table, OTA initialization and application, and clears existing flash contents/settings. The application-only image belongs at 0x10000 with the matching partition layout.
-
-Tap the front button for new music and a new visual; hold to fade out/in. Tap the side button to cycle volume and briefly show information. Shake for a new visual.
-
-## Source and rebuilding
-
-The release includes:
-
-- `rill-0.2.0-source.tar.gz`: tagged Rill source and build/package scripts.
-- `rill-0.2.0-dependency-inputs.tar.gz`: installed M5Unified 0.2.21, M5GFX 0.2.28, Arduino ESP32 2.0.17 framework and PlatformIO Espressif 32 6.12.0 platform, with bundled notices intact.
-- `rill-0.2.0-esp-idf-source.tar.gz`: ESP-IDF v4.4.7 (38eeba213aa695aabfd6d89aa9f5078dbe5a94c3) with pinned recursive submodules and notices, excluding Git metadata.
-
-Install requirements-dev.txt in a Python virtual environment and run `pio run` from the source directory. PlatformIO downloads the pinned dependencies and compiler tools. To use archived library sources, copy M5Unified and M5GFX into the project's `lib/` directory. The archived framework and platform preserve the installed build inputs; the framework includes vendor prebuilt SDK libraries. The ESP-IDF archive provides upstream source, not a claim of bit-for-bit SDK reproduction. Build paths and environment may affect binary output.
-
-Run `python tools/test.py --sanitize` for host checks. After building, `python tools/package_release.py 0.2.0` creates merged firmware and its manifest. No signing key or device credential is required to build or install modified firmware through the USB bootloader.
-
-Original code is GPL-3.0-or-later. Dependencies retain their own notices; see docs/DEPENDENCIES.md and the archives. SHA256SUMS covers release files.
+Original code is GPL-3.0-or-later. Dependencies retain their notices; see [dependencies](../docs/DEPENDENCIES.md).
